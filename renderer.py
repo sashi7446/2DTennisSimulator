@@ -267,6 +267,7 @@ class DebugRenderer(Renderer):
     - Hit detection zones
     - Detailed state information
     - Frame-by-frame data
+    - Reward graphs (cumulative and moving average)
     """
 
     def __init__(self, config: Optional[Config] = None, trail_length: int = 60):
@@ -289,8 +290,23 @@ class DebugRenderer(Renderer):
         self.show_trajectory = True
         self.show_distances = True
         self.show_state_panel = True
+        self.show_graphs = True
         self.paused = False
         self.step_mode = False
+
+        # Reward tracking
+        self.cumulative_rewards_a: List[float] = []  # Current episode
+        self.cumulative_rewards_b: List[float] = []  # Current episode
+        self.current_cumulative_a: float = 0.0
+        self.current_cumulative_b: float = 0.0
+
+        # Episode history for moving average (stores total reward per episode)
+        self.episode_rewards_a: List[float] = []
+        self.episode_rewards_b: List[float] = []
+        self.moving_avg_window: int = 5
+
+        # Graph settings
+        self.graph_max_points: int = 200  # Max points to show in cumulative graph
 
     def _draw_ball_trajectory(self, game: Game) -> None:
         """Draw the ball's recent trajectory."""
@@ -418,17 +434,187 @@ class DebugRenderer(Renderer):
             "T - Toggle trajectory",
             "D - Toggle distances",
             "P - Toggle state panel",
+            "G - Toggle graphs",
             "SPACE - Pause/Resume",
             "N - Step (when paused)",
         ]
 
         x = self.window_width - 150
-        y = self.window_height - 100
+        y = self.window_height - 120
 
         for i, text in enumerate(help_text):
             color = CYAN if i == 0 else GRAY
             surface = self.debug_font.render(text, True, color)
             self.screen.blit(surface, (x, y + i * 14))
+
+    def _draw_graph(
+        self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        data_a: List[float],
+        data_b: List[float],
+        title: str,
+        show_zero_line: bool = True,
+    ) -> None:
+        """Draw a line graph with two data series."""
+        # Background
+        graph_surface = pygame.Surface((width, height))
+        graph_surface.set_alpha(200)
+        graph_surface.fill(BLACK)
+        self.screen.blit(graph_surface, (x, y))
+
+        # Border
+        pygame.draw.rect(self.screen, WHITE, (x, y, width, height), 1)
+
+        # Title
+        title_surface = self.debug_font.render(title, True, WHITE)
+        self.screen.blit(title_surface, (x + 5, y + 2))
+
+        # Graph area (with padding for title)
+        graph_x = x + 5
+        graph_y = y + 18
+        graph_w = width - 10
+        graph_h = height - 23
+
+        if len(data_a) < 2 and len(data_b) < 2:
+            # Not enough data
+            no_data = self.debug_font.render("No data", True, GRAY)
+            self.screen.blit(no_data, (x + width // 2 - 20, y + height // 2))
+            return
+
+        # Find min/max for scaling
+        all_data = data_a + data_b
+        if not all_data:
+            return
+        min_val = min(all_data)
+        max_val = max(all_data)
+
+        # Add some padding to range
+        range_val = max_val - min_val
+        if range_val == 0:
+            range_val = 1
+        min_val -= range_val * 0.1
+        max_val += range_val * 0.1
+        range_val = max_val - min_val
+
+        # Draw zero line if in range
+        if show_zero_line and min_val < 0 < max_val:
+            zero_y = graph_y + graph_h - int((0 - min_val) / range_val * graph_h)
+            pygame.draw.line(
+                self.screen, GRAY, (graph_x, zero_y), (graph_x + graph_w, zero_y), 1
+            )
+
+        def draw_line_series(data: List[float], color: Tuple[int, int, int]) -> None:
+            if len(data) < 2:
+                return
+            points = []
+            for i, val in enumerate(data):
+                px = graph_x + int(i / (len(data) - 1) * graph_w)
+                py = graph_y + graph_h - int((val - min_val) / range_val * graph_h)
+                py = max(graph_y, min(graph_y + graph_h, py))
+                points.append((px, py))
+            if len(points) >= 2:
+                pygame.draw.lines(self.screen, color, False, points, 2)
+
+        # Draw both series
+        draw_line_series(data_a, RED)
+        draw_line_series(data_b, BLUE)
+
+        # Draw current values
+        if data_a:
+            val_a = self.debug_font.render(f"A:{data_a[-1]:.2f}", True, RED)
+            self.screen.blit(val_a, (x + width - 60, y + 2))
+        if data_b:
+            val_b = self.debug_font.render(f"B:{data_b[-1]:.2f}", True, BLUE)
+            self.screen.blit(val_b, (x + width - 60, y + 12))
+
+    def _draw_reward_graphs(self) -> None:
+        """Draw all 4 reward graphs."""
+        if not self.show_graphs:
+            return
+
+        # Graph dimensions
+        graph_width = 180
+        graph_height = 80
+        margin = 5
+
+        # Position graphs at the bottom of the field area
+        base_x = self.padding + 200
+        base_y = self.padding + self.ui_height + self.config.field_height - graph_height * 2 - margin * 2
+
+        # Top row: Cumulative rewards (current episode)
+        self._draw_graph(
+            base_x,
+            base_y,
+            graph_width,
+            graph_height,
+            self.cumulative_rewards_a[-self.graph_max_points:],
+            self.cumulative_rewards_b[-self.graph_max_points:],
+            "Cumulative (Episode)",
+        )
+
+        # Top row, second graph: Episode moving average
+        self._draw_graph(
+            base_x + graph_width + margin,
+            base_y,
+            graph_width,
+            graph_height,
+            self._get_moving_averages(self.episode_rewards_a),
+            self._get_moving_averages(self.episode_rewards_b),
+            f"Moving Avg ({self.moving_avg_window} ep)",
+        )
+
+        # Labels for Player A and B
+        label_y = base_y + graph_height + 5
+        label_a = self.debug_font.render("■ Player A", True, RED)
+        label_b = self.debug_font.render("■ Player B", True, BLUE)
+        self.screen.blit(label_a, (base_x, label_y))
+        self.screen.blit(label_b, (base_x + 80, label_y))
+
+        # Episode count
+        ep_text = f"Episodes: {len(self.episode_rewards_a)}"
+        ep_surface = self.debug_font.render(ep_text, True, WHITE)
+        self.screen.blit(ep_surface, (base_x + graph_width + margin, label_y))
+
+    def _get_moving_averages(self, rewards: List[float]) -> List[float]:
+        """Calculate moving average over episodes."""
+        if len(rewards) < 1:
+            return []
+
+        result = []
+        for i in range(len(rewards)):
+            start = max(0, i - self.moving_avg_window + 1)
+            window = rewards[start : i + 1]
+            result.append(sum(window) / len(window))
+        return result
+
+    def add_reward(self, reward_a: float, reward_b: float) -> None:
+        """Add rewards from the current step."""
+        self.current_cumulative_a += reward_a
+        self.current_cumulative_b += reward_b
+        self.cumulative_rewards_a.append(self.current_cumulative_a)
+        self.cumulative_rewards_b.append(self.current_cumulative_b)
+
+    def end_episode(self) -> None:
+        """Call when an episode (game) ends to record totals."""
+        if self.cumulative_rewards_a or self.cumulative_rewards_b:
+            self.episode_rewards_a.append(self.current_cumulative_a)
+            self.episode_rewards_b.append(self.current_cumulative_b)
+
+        # Reset for next episode
+        self.current_cumulative_a = 0.0
+        self.current_cumulative_b = 0.0
+        self.cumulative_rewards_a = []
+        self.cumulative_rewards_b = []
+
+    def reset_episode_rewards(self) -> None:
+        """Reset cumulative rewards for a new episode (but keep history)."""
+        self.current_cumulative_a = 0.0
+        self.current_cumulative_b = 0.0
+        self.cumulative_rewards_a = []
+        self.cumulative_rewards_b = []
 
     def _check_state_changes(self, game: Game) -> None:
         """Check for state changes and log them."""
@@ -478,6 +664,7 @@ class DebugRenderer(Renderer):
         self._draw_distances(game)
         self._draw_state_panel(game)
         self._draw_event_log()
+        self._draw_reward_graphs()
         self._draw_controls_help()
 
         # UI
@@ -507,6 +694,8 @@ class DebugRenderer(Renderer):
                     self.show_distances = not self.show_distances
                 elif event.key == pygame.K_p:
                     self.show_state_panel = not self.show_state_panel
+                elif event.key == pygame.K_g:
+                    self.show_graphs = not self.show_graphs
                 elif event.key == pygame.K_SPACE:
                     self.paused = not self.paused
                 elif event.key == pygame.K_n:

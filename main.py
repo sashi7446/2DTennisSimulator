@@ -75,7 +75,6 @@ def run_visual_game(config: Optional[Config] = None, debug: bool = False) -> Non
         return
 
     config = config or Config()
-    game = Game(config)
 
     if debug:
         renderer = DebugRenderer(config)
@@ -83,61 +82,77 @@ def run_visual_game(config: Optional[Config] = None, debug: bool = False) -> Non
         print("T - Toggle trajectory")
         print("D - Toggle distances")
         print("P - Toggle state panel")
+        print("G - Toggle graphs")
         print("SPACE - Pause/Resume")
         print("N - Step (when paused)")
+        print("R - Start new episode")
         print("==================\n")
     else:
         renderer = Renderer(config)
 
     running = True
-    while running and not game.is_game_over:
-        running = renderer.handle_events()
+    episode_count = 0
 
-        # Check if we should step (respects pause in debug mode)
-        should_step = True
-        if debug and hasattr(renderer, 'should_step'):
-            should_step = renderer.should_step()
+    while running:
+        # Start new game/episode
+        game = Game(config)
+        episode_count += 1
 
-        if should_step:
-            # Simple chase AI for demo
-            obs = game.get_observation()
+        while running and not game.is_game_over:
+            running = renderer.handle_events()
 
-            # Player A chases ball
-            dx_a = obs["ball_x"] - obs["player_a_x"]
-            dy_a = obs["ball_y"] - obs["player_a_y"]
-            angle_a = math.degrees(math.atan2(dy_a, dx_a))
-            if angle_a < 0:
-                angle_a += 360
-            move_a = int(angle_a / 22.5) % 16
+            # Check if we should step (respects pause in debug mode)
+            should_step = True
+            if debug and hasattr(renderer, 'should_step'):
+                should_step = renderer.should_step()
 
-            # Player B chases ball
-            dx_b = obs["ball_x"] - obs["player_b_x"]
-            dy_b = obs["ball_y"] - obs["player_b_y"]
-            angle_b = math.degrees(math.atan2(dy_b, dx_b))
-            if angle_b < 0:
-                angle_b += 360
-            move_b = int(angle_b / 22.5) % 16
+            if should_step:
+                # Simple chase AI for demo
+                obs = game.get_observation()
 
-            # Hit toward opponent's side
-            hit_a = 0 if obs["player_a_x"] < config.field_width / 2 else 180
-            hit_b = 180 if obs["player_b_x"] > config.field_width / 2 else 0
+                # Player A chases ball
+                dx_a = obs["ball_x"] - obs["player_a_x"]
+                dy_a = obs["ball_y"] - obs["player_a_y"]
+                angle_a = math.degrees(math.atan2(dy_a, dx_a))
+                if angle_a < 0:
+                    angle_a += 360
+                move_a = int(angle_a / 22.5) % 16
 
-            game.step((move_a, hit_a), (move_b, hit_b))
+                # Player B chases ball
+                dx_b = obs["ball_x"] - obs["player_b_x"]
+                dy_b = obs["ball_y"] - obs["player_b_y"]
+                angle_b = math.degrees(math.atan2(dy_b, dx_b))
+                if angle_b < 0:
+                    angle_b += 360
+                move_b = int(angle_b / 22.5) % 16
 
-            # Update debug renderer
-            if debug and hasattr(renderer, 'update'):
-                renderer.update(game)
+                # Hit toward opponent's side
+                hit_a = 0 if obs["player_a_x"] < config.field_width / 2 else 180
+                hit_b = 180 if obs["player_b_x"] > config.field_width / 2 else 0
 
-        renderer.render(game)
-        renderer.tick()
+                result = game.step((move_a, hit_a), (move_b, hit_b))
 
-    # Show final state
-    if game.is_game_over:
-        for _ in range(180):
-            if not renderer.handle_events():
-                break
+                # Update debug renderer with rewards
+                if debug and hasattr(renderer, 'update'):
+                    renderer.update(game)
+                if debug and hasattr(renderer, 'add_reward'):
+                    renderer.add_reward(result.rewards[0], result.rewards[1])
+
             renderer.render(game)
             renderer.tick()
+
+        # Episode ended
+        if debug and hasattr(renderer, 'end_episode'):
+            renderer.end_episode()
+
+        # Show final state briefly, then auto-restart
+        if game.is_game_over and running:
+            for _ in range(120):  # 2 seconds at 60fps
+                if not renderer.handle_events():
+                    running = False
+                    break
+                renderer.render(game)
+                renderer.tick()
 
     renderer.close()
 
