@@ -65,10 +65,10 @@ def run_headless_game(
     return game.winner, game.scores, game.total_steps
 
 
-def run_visual_game(config: Optional[Config] = None) -> None:
+def run_visual_game(config: Optional[Config] = None, debug: bool = False) -> None:
     """Run a game with pygame visualization."""
     try:
-        from renderer import Renderer
+        from renderer import Renderer, DebugRenderer
     except ImportError as e:
         print(f"Error: {e}")
         print("Install pygame with: pip install pygame")
@@ -76,36 +76,57 @@ def run_visual_game(config: Optional[Config] = None) -> None:
 
     config = config or Config()
     game = Game(config)
-    renderer = Renderer(config)
+
+    if debug:
+        renderer = DebugRenderer(config)
+        print("\n=== DEBUG MODE ===")
+        print("T - Toggle trajectory")
+        print("D - Toggle distances")
+        print("P - Toggle state panel")
+        print("SPACE - Pause/Resume")
+        print("N - Step (when paused)")
+        print("==================\n")
+    else:
+        renderer = Renderer(config)
 
     running = True
     while running and not game.is_game_over:
         running = renderer.handle_events()
 
-        # Simple chase AI for demo
-        obs = game.get_observation()
+        # Check if we should step (respects pause in debug mode)
+        should_step = True
+        if debug and hasattr(renderer, 'should_step'):
+            should_step = renderer.should_step()
 
-        # Player A chases ball
-        dx_a = obs["ball_x"] - obs["player_a_x"]
-        dy_a = obs["ball_y"] - obs["player_a_y"]
-        angle_a = math.degrees(math.atan2(dy_a, dx_a))
-        if angle_a < 0:
-            angle_a += 360
-        move_a = int(angle_a / 22.5) % 16
+        if should_step:
+            # Simple chase AI for demo
+            obs = game.get_observation()
 
-        # Player B chases ball
-        dx_b = obs["ball_x"] - obs["player_b_x"]
-        dy_b = obs["ball_y"] - obs["player_b_y"]
-        angle_b = math.degrees(math.atan2(dy_b, dx_b))
-        if angle_b < 0:
-            angle_b += 360
-        move_b = int(angle_b / 22.5) % 16
+            # Player A chases ball
+            dx_a = obs["ball_x"] - obs["player_a_x"]
+            dy_a = obs["ball_y"] - obs["player_a_y"]
+            angle_a = math.degrees(math.atan2(dy_a, dx_a))
+            if angle_a < 0:
+                angle_a += 360
+            move_a = int(angle_a / 22.5) % 16
 
-        # Hit toward opponent's side
-        hit_a = 0 if obs["player_a_x"] < config.field_width / 2 else 180
-        hit_b = 180 if obs["player_b_x"] > config.field_width / 2 else 0
+            # Player B chases ball
+            dx_b = obs["ball_x"] - obs["player_b_x"]
+            dy_b = obs["ball_y"] - obs["player_b_y"]
+            angle_b = math.degrees(math.atan2(dy_b, dx_b))
+            if angle_b < 0:
+                angle_b += 360
+            move_b = int(angle_b / 22.5) % 16
 
-        result = game.step((move_a, hit_a), (move_b, hit_b))
+            # Hit toward opponent's side
+            hit_a = 0 if obs["player_a_x"] < config.field_width / 2 else 180
+            hit_b = 180 if obs["player_b_x"] > config.field_width / 2 else 0
+
+            game.step((move_a, hit_a), (move_b, hit_b))
+
+            # Update debug renderer
+            if debug and hasattr(renderer, 'update'):
+                renderer.update(game)
 
         renderer.render(game)
         renderer.tick()
@@ -223,6 +244,11 @@ def main():
         default=60,
         help="Frames per second for visual mode (default: 60)",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug mode with state overlay and controls",
+    )
 
     args = parser.parse_args()
 
@@ -238,7 +264,7 @@ def main():
     elif args.mode == "keyboard":
         run_keyboard_game(config)
     else:
-        run_visual_game(config)
+        run_visual_game(config, debug=args.debug)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 """Pygame renderer for 2D Tennis Simulator."""
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Deque
+from collections import deque
 import math
 
 try:
@@ -23,6 +24,8 @@ RED = (255, 100, 100)  # Player A
 BLUE = (100, 100, 255)  # Player B
 GRAY = (128, 128, 128)  # Wall
 DARK_GREEN = (0, 100, 0)  # Lines
+ORANGE = (255, 165, 0)  # Debug highlight
+CYAN = (0, 255, 255)  # Debug info
 
 
 class Renderer:
@@ -252,6 +255,272 @@ class Renderer:
         """Close the renderer and pygame."""
         pygame.quit()
         self._initialized = False
+
+
+class DebugRenderer(Renderer):
+    """
+    Extended renderer with debug overlay.
+
+    Shows additional information to help verify correct behavior:
+    - Ball trajectory (past positions)
+    - In-flag state changes
+    - Hit detection zones
+    - Detailed state information
+    - Frame-by-frame data
+    """
+
+    def __init__(self, config: Optional[Config] = None, trail_length: int = 60):
+        super().__init__(config)
+        pygame.display.set_caption("2D Tennis Simulator [DEBUG MODE]")
+
+        # Ball trajectory trail
+        self.ball_trail: Deque[Tuple[float, float, bool]] = deque(maxlen=trail_length)
+
+        # Event log for on-screen display
+        self.event_log: Deque[str] = deque(maxlen=8)
+
+        # State tracking for change detection
+        self.last_in_flag = False
+        self.last_scores = [0, 0]
+        self.frame_count = 0
+
+        # Debug panel settings
+        self.debug_font = pygame.font.Font(None, 18)
+        self.show_trajectory = True
+        self.show_distances = True
+        self.show_state_panel = True
+        self.paused = False
+        self.step_mode = False
+
+    def _draw_ball_trajectory(self, game: Game) -> None:
+        """Draw the ball's recent trajectory."""
+        if not self.show_trajectory or len(self.ball_trail) < 2:
+            return
+
+        # Draw trail with fading effect
+        trail_list = list(self.ball_trail)
+        for i in range(1, len(trail_list)):
+            prev_x, prev_y, prev_in_flag = trail_list[i - 1]
+            curr_x, curr_y, curr_in_flag = trail_list[i]
+
+            # Fade based on age
+            alpha = int(255 * (i / len(trail_list)))
+
+            # Color based on in_flag state
+            if curr_in_flag:
+                color = (alpha, alpha, 0)  # Yellow when in
+            else:
+                color = (alpha // 2, alpha // 2, 0)  # Dim when out
+
+            start = self._field_to_screen(prev_x, prev_y)
+            end = self._field_to_screen(curr_x, curr_y)
+            pygame.draw.line(self.screen, color, start, end, 2)
+
+        # Mark in_flag state change points
+        for i, (x, y, in_flag) in enumerate(trail_list):
+            if i > 0:
+                _, _, prev_in_flag = trail_list[i - 1]
+                if in_flag != prev_in_flag:
+                    pos = self._field_to_screen(x, y)
+                    color = ORANGE if in_flag else RED
+                    pygame.draw.circle(self.screen, color, pos, 6, 2)
+
+    def _draw_distances(self, game: Game) -> None:
+        """Draw distance lines from players to ball."""
+        if not self.show_distances or game.ball is None:
+            return
+
+        ball_pos = self._field_to_screen(game.ball.x, game.ball.y)
+
+        for player, color in [(game.player_a, RED), (game.player_b, BLUE)]:
+            player_pos = self._field_to_screen(player.x, player.y)
+            distance = player.distance_to_ball(game.ball)
+
+            # Draw line to ball
+            pygame.draw.line(self.screen, color, player_pos, ball_pos, 1)
+
+            # Draw distance text
+            mid_x = (player_pos[0] + ball_pos[0]) // 2
+            mid_y = (player_pos[1] + ball_pos[1]) // 2
+
+            can_hit = player.can_hit(game.ball)
+            dist_color = CYAN if can_hit else GRAY
+
+            dist_text = f"{distance:.1f}"
+            if can_hit:
+                dist_text += " [HIT]"
+            dist_surface = self.debug_font.render(dist_text, True, dist_color)
+            self.screen.blit(dist_surface, (mid_x, mid_y))
+
+    def _draw_state_panel(self, game: Game) -> None:
+        """Draw detailed state information panel."""
+        if not self.show_state_panel:
+            return
+
+        # Panel background
+        panel_x = 10
+        panel_y = self.padding + self.ui_height + 10
+        panel_width = 180
+        panel_height = 200
+
+        panel_surface = pygame.Surface((panel_width, panel_height))
+        panel_surface.set_alpha(200)
+        panel_surface.fill(BLACK)
+        self.screen.blit(panel_surface, (panel_x, panel_y))
+
+        # Draw state information
+        y_offset = panel_y + 5
+        line_height = 16
+
+        def draw_line(text: str, color=WHITE):
+            nonlocal y_offset
+            surface = self.debug_font.render(text, True, color)
+            self.screen.blit(surface, (panel_x + 5, y_offset))
+            y_offset += line_height
+
+        draw_line(f"Frame: {self.frame_count}", CYAN)
+        draw_line(f"Steps: {game.total_steps}")
+        draw_line(f"State: {game.state.value}")
+        draw_line("---")
+
+        if game.ball:
+            draw_line("Ball:", YELLOW)
+            draw_line(f"  Pos: ({game.ball.x:.1f}, {game.ball.y:.1f})")
+            draw_line(f"  Vel: ({game.ball.vx:.1f}, {game.ball.vy:.1f})")
+            in_flag_color = YELLOW if game.ball.in_flag else GRAY
+            draw_line(f"  In-Flag: {game.ball.in_flag}", in_flag_color)
+            last_hit = game.ball.last_hit_by
+            draw_line(f"  Last Hit: {['A', 'B'][last_hit] if last_hit is not None else 'None'}")
+
+        draw_line("---")
+        draw_line("Players:")
+        draw_line(f"  A: ({game.player_a.x:.0f}, {game.player_a.y:.0f})", RED)
+        draw_line(f"  B: ({game.player_b.x:.0f}, {game.player_b.y:.0f})", BLUE)
+
+    def _draw_event_log(self) -> None:
+        """Draw recent events log."""
+        if not self.event_log:
+            return
+
+        x = self.window_width - 200
+        y = self.padding + self.ui_height + 10
+
+        for i, event in enumerate(self.event_log):
+            alpha = int(255 * (1 - i / len(self.event_log)))
+            color = (alpha, alpha, alpha)
+            surface = self.debug_font.render(event, True, color)
+            self.screen.blit(surface, (x, y + i * 14))
+
+    def _draw_controls_help(self) -> None:
+        """Draw keyboard controls help."""
+        help_text = [
+            "Debug Controls:",
+            "T - Toggle trajectory",
+            "D - Toggle distances",
+            "P - Toggle state panel",
+            "SPACE - Pause/Resume",
+            "N - Step (when paused)",
+        ]
+
+        x = self.window_width - 150
+        y = self.window_height - 100
+
+        for i, text in enumerate(help_text):
+            color = CYAN if i == 0 else GRAY
+            surface = self.debug_font.render(text, True, color)
+            self.screen.blit(surface, (x, y + i * 14))
+
+    def _check_state_changes(self, game: Game) -> None:
+        """Check for state changes and log them."""
+        if game.ball:
+            # In-flag change
+            if game.ball.in_flag != self.last_in_flag:
+                if game.ball.in_flag:
+                    self.event_log.appendleft(f"F{self.frame_count}: IN-FLAG ON")
+                else:
+                    self.event_log.appendleft(f"F{self.frame_count}: IN-FLAG OFF (hit)")
+                self.last_in_flag = game.ball.in_flag
+
+        # Score change
+        if game.scores != self.last_scores:
+            diff_a = game.scores[0] - self.last_scores[0]
+            diff_b = game.scores[1] - self.last_scores[1]
+            if diff_a > 0:
+                self.event_log.appendleft(f"F{self.frame_count}: Point to A")
+            if diff_b > 0:
+                self.event_log.appendleft(f"F{self.frame_count}: Point to B")
+            self.last_scores = game.scores.copy()
+
+    def update(self, game: Game) -> None:
+        """Update debug state (call before render)."""
+        self.frame_count += 1
+
+        # Record ball position for trail
+        if game.ball:
+            self.ball_trail.append((game.ball.x, game.ball.y, game.ball.in_flag))
+
+        # Check for state changes
+        self._check_state_changes(game)
+
+    def render(self, game: Game) -> None:
+        """Render with debug overlays."""
+        # Base rendering
+        self._draw_field(game)
+
+        # Debug overlays (behind ball/players)
+        self._draw_ball_trajectory(game)
+
+        # Ball and players
+        self._draw_ball(game)
+        self._draw_players(game)
+
+        # More debug overlays (on top)
+        self._draw_distances(game)
+        self._draw_state_panel(game)
+        self._draw_event_log()
+        self._draw_controls_help()
+
+        # UI
+        self._draw_ui(game)
+
+        # Pause indicator
+        if self.paused:
+            pause_surface = self.font.render("PAUSED", True, ORANGE)
+            pause_rect = pause_surface.get_rect(
+                center=(self.window_width // 2, self.window_height // 2 - 50)
+            )
+            self.screen.blit(pause_surface, pause_rect)
+
+        pygame.display.flip()
+
+    def handle_events(self) -> bool:
+        """Handle events including debug controls."""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return False
+                elif event.key == pygame.K_t:
+                    self.show_trajectory = not self.show_trajectory
+                elif event.key == pygame.K_d:
+                    self.show_distances = not self.show_distances
+                elif event.key == pygame.K_p:
+                    self.show_state_panel = not self.show_state_panel
+                elif event.key == pygame.K_SPACE:
+                    self.paused = not self.paused
+                elif event.key == pygame.K_n:
+                    self.step_mode = True
+        return True
+
+    def should_step(self) -> bool:
+        """Check if game should advance (for pause/step mode)."""
+        if not self.paused:
+            return True
+        if self.step_mode:
+            self.step_mode = False
+            return True
+        return False
 
 
 def run_demo_game() -> None:
