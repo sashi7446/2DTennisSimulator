@@ -80,13 +80,38 @@ class TestBall(unittest.TestCase):
         self.assertEqual(ball.y, 97.0)
 
     def test_update_in_flag_turns_on(self):
-        """In-flag should turn ON when entering in-area."""
-        # Position ball just before Area A
+        """In-flag should turn ON when entering OPPONENT'S in-area."""
+        # Player B (id=1) hit the ball, so it must pass through Area A
         center_a = self.field.area_a.center
         ball = Ball(x=center_a[0] - 10, y=center_a[1], vx=15.0, vy=0.0)
+        ball.last_hit_by = 1  # Player B hit it
         self.assertFalse(ball.in_flag)
 
-        # Move into area
+        # Move into Area A (opponent's area for Player B)
+        ball.update(self.field)
+        self.assertTrue(ball.in_flag)
+
+    def test_update_in_flag_requires_opponent_area(self):
+        """In-flag should NOT turn ON when entering own in-area."""
+        # Player A (id=0) hit the ball, so it must pass through Area B (not A)
+        center_a = self.field.area_a.center
+        ball = Ball(x=center_a[0] - 10, y=center_a[1], vx=15.0, vy=0.0)
+        ball.last_hit_by = 0  # Player A hit it
+        self.assertFalse(ball.in_flag)
+
+        # Move into Area A (own area for Player A - should NOT turn on)
+        ball.update(self.field)
+        self.assertFalse(ball.in_flag)  # Should stay OFF
+
+    def test_update_in_flag_player_a_to_area_b(self):
+        """Player A's shots must pass through Area B to turn in_flag ON."""
+        # Position ball just before Area B
+        center_b = self.field.area_b.center
+        ball = Ball(x=center_b[0] - 10, y=center_b[1], vx=15.0, vy=0.0)
+        ball.last_hit_by = 0  # Player A hit it
+        self.assertFalse(ball.in_flag)
+
+        # Move into Area B (opponent's area for Player A)
         ball.update(self.field)
         self.assertTrue(ball.in_flag)
 

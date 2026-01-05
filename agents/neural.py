@@ -163,9 +163,13 @@ class NeuralAgent(Agent):
 
         # Angle head
         angle_params = hidden @ self.W_angle + self.b_angle
-        # Scale mean to [0, 360], keep log_std reasonable
-        angle_params[0] = 180 + angle_params[0] * 90  # Mean around 180 with ±90 range
-        angle_params[1] = np.clip(angle_params[1], -2, 2)  # Log std in [-2, 2]
+        # Scale mean based on player facing direction
+        # Player A (id=0) faces right: center at 0°, range ±45°
+        # Player B (id=1) faces left: center at 180°, range ±45°
+        base_angle = 0.0 if self.player_id == 0 else 180.0
+        angle_params = angle_params.copy()  # Avoid modifying original
+        angle_params[0] = base_angle + np.tanh(angle_params[0]) * 45.0  # Mean in [base-45, base+45]
+        angle_params[1] = np.clip(angle_params[1], -1, 1)  # Log std in [-1, 1] for stability
 
         # Value head
         value = (hidden @ self.W_value + self.b_value)[0]
@@ -182,9 +186,9 @@ class NeuralAgent(Agent):
 
         # Sample hit angle from Gaussian
         angle_mean = angle_params[0]
-        angle_std = np.exp(angle_params[1])
+        angle_std = np.exp(angle_params[1]) + 0.1  # Add minimum std for stability
         hit_angle = np.random.normal(angle_mean, angle_std)
-        hit_angle = hit_angle % 360  # Wrap to [0, 360)
+        # No need to wrap - game.py clamps to valid range
 
         # Calculate log probability for learning
         move_log_prob = np.log(move_probs[move_action] + 1e-10)
@@ -233,35 +237,48 @@ class NeuralAgent(Agent):
             hidden = self._relu(features @ self.W1 + self.b1)
             move_logits = hidden @ self.W_move + self.b_move
             move_probs = self._softmax(move_logits)
-            angle_params = hidden @ self.W_angle + self.b_angle
-            angle_params[0] = 180 + angle_params[0] * 90
-            angle_params[1] = np.clip(angle_params[1], -2, 2)
+            angle_params_raw = hidden @ self.W_angle + self.b_angle
+            base_angle = 0.0 if self.player_id == 0 else 180.0
+            angle_mean = base_angle + np.tanh(angle_params_raw[0]) * 45.0
+            angle_log_std = np.clip(angle_params_raw[1], -1, 1)
             value = (hidden @ self.W_value + self.b_value)[0]
 
-            # Advantage
-            advantage = G - value
+            # Advantage (clipped for stability)
+            advantage = np.clip(G - value, -10, 10)
 
             # Policy gradient for movement (simplified)
             move_grad = np.zeros(self.move_output_size)
             move_grad[move_action] = 1.0 - move_probs[move_action]
             move_grad *= advantage * self.learning_rate
 
-            # Update movement weights
-            self.W_move += np.outer(hidden, move_grad)
-            self.b_move += move_grad
+            # Update movement weights (with gradient clipping)
+            move_update = np.outer(hidden, move_grad)
+            move_update = np.clip(move_update, -1, 1)
+            self.W_move += move_update
+            self.b_move += np.clip(move_grad, -1, 1)
 
-            # Update angle weights (simplified gradient)
-            angle_mean = angle_params[0]
-            angle_std = np.exp(angle_params[1])
+            # Update angle weights (simplified gradient with numerical stability)
+            angle_std = np.exp(angle_log_std) + 0.1  # Minimum std for stability
+            angle_diff = hit_angle - angle_mean
+            angle_diff = np.clip(angle_diff, -90, 90)  # Clip difference
+
             angle_grad = np.zeros(2)
-            angle_grad[0] = (hit_angle - angle_mean) / (angle_std ** 2) * advantage * self.learning_rate * 90
-            angle_grad[1] = ((hit_angle - angle_mean) ** 2 / (angle_std ** 2) - 1) * advantage * self.learning_rate
+            # Gradient for mean (through tanh)
+            tanh_grad = 1.0 - np.tanh(angle_params_raw[0]) ** 2
+            angle_grad[0] = (angle_diff / (angle_std ** 2)) * advantage * self.learning_rate * 45.0 * tanh_grad
+            # Gradient for log_std
+            normalized_sq = (angle_diff / angle_std) ** 2
+            angle_grad[1] = (normalized_sq - 1) * advantage * self.learning_rate
 
-            self.W_angle += np.outer(hidden, angle_grad)
+            # Clip gradients
+            angle_grad = np.clip(angle_grad, -1, 1)
+            angle_update = np.outer(hidden, angle_grad)
+            angle_update = np.clip(angle_update, -1, 1)
+            self.W_angle += angle_update
             self.b_angle += angle_grad
 
             # Update value weights
-            value_grad = advantage * self.learning_rate
+            value_grad = np.clip(advantage * self.learning_rate, -1, 1)
             self.W_value += hidden.reshape(-1, 1) * value_grad
             self.b_value += value_grad
 

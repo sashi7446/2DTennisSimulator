@@ -30,6 +30,11 @@ class Ball:
         """
         Update ball position and check for in-area/wall collisions.
 
+        The ball's in_flag only turns ON when passing through the OPPONENT's
+        in-area (the area on the opposite side from the player who hit it).
+        - If Player A (id=0) hit the ball, it must pass through Area B (right side)
+        - If Player B (id=1) hit the ball, it must pass through Area A (left side)
+
         Args:
             field: The field to check collisions against
 
@@ -40,9 +45,19 @@ class Ball:
         self.x += self.vx
         self.y += self.vy
 
-        # Check if ball enters an in-area (sets in_flag to True)
-        if not self.in_flag and field.is_in_area(self.x, self.y):
-            self.in_flag = True
+        # Check if ball enters the correct in-area (sets in_flag to True)
+        if not self.in_flag:
+            if self.last_hit_by is None:
+                # Serve: can pass through either area
+                if field.is_in_area(self.x, self.y):
+                    self.in_flag = True
+            else:
+                # Player hit: must pass through OPPONENT's area
+                # Player A (id=0) must hit through Area B, Player B (id=1) must hit through Area A
+                if self.last_hit_by == 0 and field.is_in_area_b(self.x, self.y):
+                    self.in_flag = True
+                elif self.last_hit_by == 1 and field.is_in_area_a(self.x, self.y):
+                    self.in_flag = True
 
         # Check for wall collision
         wall = field.check_wall_collision(self.x, self.y, self.radius)

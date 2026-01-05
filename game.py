@@ -10,6 +10,31 @@ from ball import Ball, create_serve_ball
 from player import Player, create_players, NUM_MOVEMENT_ACTIONS
 
 
+def clamp_hit_angle(angle: float, player_id: int) -> float:
+    """
+    Clamp hit angle to front 90° (±45° from facing direction).
+
+    Player A (id=0) faces right (0°): valid range is -45° to +45°
+    Player B (id=1) faces left (180°): valid range is 135° to 225°
+
+    Args:
+        angle: Raw hit angle in degrees
+        player_id: 0 for player A, 1 for player B
+
+    Returns:
+        Clamped angle in degrees
+    """
+    if player_id == 0:
+        # Player A faces right (0°)
+        # Clamp to [-45, 45]
+        clamped = max(-45.0, min(45.0, angle))
+    else:
+        # Player B faces left (180°)
+        # Clamp to [135, 225]
+        clamped = max(135.0, min(225.0, angle))
+    return clamped
+
+
 class GameState(Enum):
     """Current state of the game."""
 
@@ -151,8 +176,10 @@ class Game:
         if self.ball:
             # Player A tries to hit
             if self.player_a.can_hit(self.ball):
+                # Clamp angle to front 90° (±45° from facing direction)
+                clamped_angle_a = clamp_hit_angle(hit_angle_a, 0)
                 self.player_a.hit_ball(
-                    self.ball, hit_angle_a, self.config.ball_speed
+                    self.ball, clamped_angle_a, self.config.ball_speed
                 )
                 hit_a = True
                 self.rally_count += 1
@@ -160,8 +187,10 @@ class Game:
 
             # Player B tries to hit
             elif self.player_b.can_hit(self.ball):
+                # Clamp angle to front 90° (±45° from facing direction)
+                clamped_angle_b = clamp_hit_angle(hit_angle_b, 1)
                 self.player_b.hit_ball(
-                    self.ball, hit_angle_b, self.config.ball_speed
+                    self.ball, clamped_angle_b, self.config.ball_speed
                 )
                 hit_b = True
                 self.rally_count += 1

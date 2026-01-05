@@ -65,6 +65,12 @@ class Renderer:
 
     def _field_to_screen(self, x: float, y: float) -> Tuple[int, int]:
         """Convert field coordinates to screen coordinates."""
+        import math
+        # Handle NaN/Inf values gracefully
+        if math.isnan(x) or math.isinf(x):
+            x = 0.0
+        if math.isnan(y) or math.isinf(y):
+            y = 0.0
         screen_x = int(x + self.padding)
         screen_y = int(y + self.padding + self.ui_height)
         return (screen_x, screen_y)
@@ -639,11 +645,14 @@ class DebugRenderer(Renderer):
 
     def update(self, game: Game) -> None:
         """Update debug state (call before render)."""
+        import math
         self.frame_count += 1
 
-        # Record ball position for trail
+        # Record ball position for trail (skip NaN values)
         if game.ball:
-            self.ball_trail.append((game.ball.x, game.ball.y, game.ball.in_flag))
+            x, y = game.ball.x, game.ball.y
+            if not (math.isnan(x) or math.isnan(y) or math.isinf(x) or math.isinf(y)):
+                self.ball_trail.append((x, y, game.ball.in_flag))
 
         # Check for state changes
         self._check_state_changes(game)
