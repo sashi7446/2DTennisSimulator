@@ -301,7 +301,7 @@ class DebugRenderer(Renderer):
         # Episode history for moving average (stores total reward per episode)
         self.episode_rewards_a: List[float] = []
         self.episode_rewards_b: List[float] = []
-        self.moving_avg_window: int = 5
+        self.moving_avg_window: int = 20  # 20-episode moving average
 
         # Graph settings
         self.graph_max_points: int = 200  # Max points to show in cumulative graph
@@ -529,7 +529,7 @@ class DebugRenderer(Renderer):
             self.screen.blit(val_b, (x + width - 60, y + 12))
 
     def _draw_reward_graphs(self) -> None:
-        """Draw all 4 reward graphs."""
+        """Draw 2 reward graphs: cumulative (current episode) and moving average."""
         if not self.show_graphs:
             return
 
@@ -542,7 +542,7 @@ class DebugRenderer(Renderer):
         base_x = self.padding + 200
         base_y = self.padding + self.ui_height + self.config.field_height - graph_height * 2 - margin * 2
 
-        # Top row: Cumulative rewards (current episode)
+        # Left graph: Cumulative rewards (current episode) - shows reward flow in real-time
         self._draw_graph(
             base_x,
             base_y,
@@ -553,7 +553,7 @@ class DebugRenderer(Renderer):
             "Cumulative (Episode)",
         )
 
-        # Top row, second graph: Episode moving average
+        # Right graph: Episode rewards with moving average - shows all episodes
         self._draw_graph(
             base_x + graph_width + margin,
             base_y,
@@ -561,7 +561,7 @@ class DebugRenderer(Renderer):
             graph_height,
             self._get_moving_averages(self.episode_rewards_a),
             self._get_moving_averages(self.episode_rewards_b),
-            f"Moving Avg ({self.moving_avg_window} ep)",
+            f"Reward ({self.moving_avg_window}-ep MA)",
         )
 
         # Labels for Player A and B
