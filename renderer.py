@@ -139,14 +139,6 @@ class Renderer:
             self.screen, ball_color, ball_screen, game.ball.radius
         )
 
-        # Draw velocity indicator
-        if game.ball.vx != 0 or game.ball.vy != 0:
-            speed = game.ball.get_speed()
-            scale = 3  # Scale factor for velocity line
-            end_x = ball_screen[0] + int(game.ball.vx * scale)
-            end_y = ball_screen[1] + int(game.ball.vy * scale)
-            pygame.draw.line(self.screen, WHITE, ball_screen, (end_x, end_y), 1)
-
     def _draw_players(self, game: Game) -> None:
         """Draw both players."""
         # Player A (red)
@@ -294,7 +286,7 @@ class DebugRenderer(Renderer):
         # Debug panel settings
         self.debug_font = pygame.font.Font(None, 18)
         self.show_trajectory = True
-        self.show_distances = True
+        self.show_distances = False  # Disabled by default (toggle with D key)
         self.show_state_panel = True
         self.show_graphs = True
         self.paused = False
