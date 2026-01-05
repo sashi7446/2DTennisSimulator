@@ -7,74 +7,88 @@ Designed to observe emergent tactical behaviors like returning to home position.
 """
 
 import argparse
-import random
-import math
-from typing import Optional
+import os
+from typing import Optional, Tuple
 
 from config import Config
 from game import Game, GameState
+from agents import (
+    Agent,
+    ChaseAgent,
+    SmartChaseAgent,
+    RandomAgent,
+    load_agent,
+    NEURAL_AVAILABLE,
+)
+
+if NEURAL_AVAILABLE:
+    from agents import NeuralAgent
 
 
-def run_headless_game(
-    config: Optional[Config] = None,
-    max_points: int = 11,
-    verbose: bool = True,
-) -> tuple:
+def create_agent(agent_type: str, player_id: int, config: Config, load_path: Optional[str] = None) -> Agent:
     """
-    Run a game without visualization.
+    Create or load an agent.
 
     Args:
+        agent_type: Type of agent (chase, smart, random, neural, or path to saved agent)
+        player_id: 0 for Player A, 1 for Player B
         config: Game configuration
-        max_points: Points to win
-        verbose: Print game events
+        load_path: Path to load agent from (optional)
 
     Returns:
-        Tuple of (winner, final_scores, total_steps)
+        Configured agent instance
     """
-    config = config or Config()
-    config.points_to_win = max_points
-    game = Game(config)
+    # Check if it's a path to a saved agent
+    if load_path and os.path.exists(load_path):
+        agent = load_agent(load_path)
+        agent.set_player_id(player_id)
+        if hasattr(agent, 'set_field_dimensions'):
+            agent.set_field_dimensions(config.field_width, config.field_height)
+        print(f"Loaded agent from {load_path}: {agent.config.name}")
+        return agent
 
-    while not game.is_game_over:
-        # Random actions for demo
-        action_a = (
-            random.randint(0, 16),
-            random.uniform(0, 360),
-        )
-        action_b = (
-            random.randint(0, 16),
-            random.uniform(0, 360),
-        )
+    # Create new agent by type
+    if agent_type == "chase":
+        agent = ChaseAgent()
+    elif agent_type == "smart":
+        agent = SmartChaseAgent()
+    elif agent_type == "random":
+        agent = RandomAgent()
+    elif agent_type == "neural":
+        if not NEURAL_AVAILABLE:
+            print("Warning: NeuralAgent requires numpy. Falling back to ChaseAgent.")
+            agent = ChaseAgent()
+        else:
+            agent = NeuralAgent()
+    else:
+        # Try to load from path
+        if os.path.exists(agent_type):
+            agent = load_agent(agent_type)
+        else:
+            print(f"Unknown agent type: {agent_type}. Using ChaseAgent.")
+            agent = ChaseAgent()
 
-        result = game.step(action_a, action_b)
+    agent.set_player_id(player_id)
+    if hasattr(agent, 'set_field_dimensions'):
+        agent.set_field_dimensions(config.field_width, config.field_height)
 
-        if result.point_result and verbose:
-            pr = result.point_result
-            winner_name = "A" if pr.winner == 0 else "B"
-            print(
-                f"Point to Player {winner_name} ({pr.reason}) - "
-                f"Score: {game.scores[0]}-{game.scores[1]}"
-            )
-
-    if verbose:
-        winner = "A" if game.winner == 0 else "B"
-        print(f"\nGame Over! Player {winner} wins!")
-        print(f"Final Score: {game.scores[0]}-{game.scores[1]}")
-        print(f"Total Steps: {game.total_steps}")
-
-    return game.winner, game.scores, game.total_steps
+    return agent
 
 
-def run_visual_game(config: Optional[Config] = None, debug: bool = False) -> None:
-    """Run a game with pygame visualization."""
+def run_visual_game(
+    config: Config,
+    agent_a: Agent,
+    agent_b: Agent,
+    debug: bool = False,
+    save_dir: Optional[str] = None,
+) -> None:
+    """Run a game with pygame visualization and agent control."""
     try:
         from renderer import Renderer, DebugRenderer
     except ImportError as e:
         print(f"Error: {e}")
         print("Install pygame with: pip install pygame")
         return
-
-    config = config or Config()
 
     if debug:
         renderer = DebugRenderer(config)
@@ -85,20 +99,46 @@ def run_visual_game(config: Optional[Config] = None, debug: bool = False) -> Non
         print("G - Toggle graphs")
         print("SPACE - Pause/Resume")
         print("N - Step (when paused)")
-        print("R - Start new episode")
+        print("S - Save agents")
         print("==================\n")
     else:
         renderer = Renderer(config)
 
+    # Print agent info
+    print(f"\n=== Match ===")
+    print(f"Player A: {agent_a.config.name} ({agent_a.config.agent_type})")
+    print(f"Player B: {agent_b.config.name} ({agent_b.config.agent_type})")
+    print(f"=============\n")
+
     running = True
     episode_count = 0
+    save_requested = False
 
     while running:
         # Start new game/episode
         game = Game(config)
         episode_count += 1
 
+        # Reset agents for new episode
+        agent_a.reset()
+        agent_b.reset()
+
+        print(f"Episode {episode_count} started")
+
         while running and not game.is_game_over:
+            # Handle events
+            for event in _get_pygame_events():
+                if event.type == _get_pygame_const('QUIT'):
+                    running = False
+                elif event.type == _get_pygame_const('KEYDOWN'):
+                    if event.key == _get_pygame_const('K_ESCAPE'):
+                        running = False
+                    elif event.key == _get_pygame_const('K_s'):
+                        save_requested = True
+
+            if not running:
+                break
+
             running = renderer.handle_events()
 
             # Check if we should step (respects pause in debug mode)
@@ -107,32 +147,21 @@ def run_visual_game(config: Optional[Config] = None, debug: bool = False) -> Non
                 should_step = renderer.should_step()
 
             if should_step:
-                # Simple chase AI for demo
+                # Get observation
                 obs = game.get_observation()
 
-                # Player A chases ball
-                dx_a = obs["ball_x"] - obs["player_a_x"]
-                dy_a = obs["ball_y"] - obs["player_a_y"]
-                angle_a = math.degrees(math.atan2(dy_a, dx_a))
-                if angle_a < 0:
-                    angle_a += 360
-                move_a = int(angle_a / 22.5) % 16
+                # Agents choose actions
+                action_a = agent_a.act(obs)
+                action_b = agent_b.act(obs)
 
-                # Player B chases ball
-                dx_b = obs["ball_x"] - obs["player_b_x"]
-                dy_b = obs["ball_y"] - obs["player_b_y"]
-                angle_b = math.degrees(math.atan2(dy_b, dx_b))
-                if angle_b < 0:
-                    angle_b += 360
-                move_b = int(angle_b / 22.5) % 16
+                # Step game
+                result = game.step(action_a, action_b)
 
-                # Hit toward opponent's side
-                hit_a = 0 if obs["player_a_x"] < config.field_width / 2 else 180
-                hit_b = 180 if obs["player_b_x"] > config.field_width / 2 else 0
+                # Agents learn from rewards
+                agent_a.learn(result.rewards[0], game.is_game_over)
+                agent_b.learn(result.rewards[1], game.is_game_over)
 
-                result = game.step((move_a, hit_a), (move_b, hit_b))
-
-                # Update debug renderer with rewards
+                # Update debug renderer
                 if debug and hasattr(renderer, 'update'):
                     renderer.update(game)
                 if debug and hasattr(renderer, 'add_reward'):
@@ -145,101 +174,144 @@ def run_visual_game(config: Optional[Config] = None, debug: bool = False) -> Non
         if debug and hasattr(renderer, 'end_episode'):
             renderer.end_episode()
 
+        # Print episode result
+        if game.is_game_over:
+            winner = "A" if game.winner == 0 else "B"
+            print(f"Episode {episode_count}: Player {winner} wins! "
+                  f"Score: {game.scores[0]}-{game.scores[1]}")
+
+            # Print learning stats if available
+            for name, agent in [("A", agent_a), ("B", agent_b)]:
+                info = agent.get_info()
+                if "episodes_trained" in info:
+                    print(f"  {name}: {info.get('episodes_trained', 0)} episodes trained, "
+                          f"recent avg: {info.get('recent_avg_reward', 0):.2f}")
+
+        # Save if requested
+        if save_requested and save_dir:
+            _save_agents(agent_a, agent_b, save_dir, episode_count)
+            save_requested = False
+
         # Show final state briefly, then auto-restart
         if game.is_game_over and running:
-            for _ in range(120):  # 2 seconds at 60fps
+            for _ in range(60):  # 1 second at 60fps
                 if not renderer.handle_events():
                     running = False
                     break
                 renderer.render(game)
                 renderer.tick()
 
-    renderer.close()
-
-
-def run_keyboard_game(config: Optional[Config] = None) -> None:
-    """Run a game with keyboard control for Player A."""
-    try:
-        import pygame
-        from renderer import Renderer
-    except ImportError as e:
-        print(f"Error: {e}")
-        print("Install pygame with: pip install pygame")
-        return
-
-    config = config or Config()
-    game = Game(config)
-    renderer = Renderer(config)
-
-    print("\n=== Keyboard Controls ===")
-    print("Arrow keys / WASD: Move Player A")
-    print("Space: Hit ball (auto-aims toward opponent)")
-    print("ESC: Quit")
-    print("========================\n")
-
-    running = True
-    while running and not game.is_game_over:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                running = False
-
-        if not running:
-            break
-
-        # Get keyboard state
-        keys = pygame.key.get_pressed()
-
-        # Determine movement direction for Player A
-        dx, dy = 0, 0
-        if keys[pygame.K_UP] or keys[pygame.K_w]:
-            dy -= 1
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-            dy += 1
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            dx -= 1
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            dx += 1
-
-        if dx != 0 or dy != 0:
-            angle = math.degrees(math.atan2(dy, dx))
-            if angle < 0:
-                angle += 360
-            move_a = int(angle / 22.5) % 16
-        else:
-            move_a = 16  # Stay
-
-        # Hit toward opponent's side
-        hit_a = 0.0  # Aim right
-
-        # Simple AI for Player B
-        obs = game.get_observation()
-        dx_b = obs["ball_x"] - obs["player_b_x"]
-        dy_b = obs["ball_y"] - obs["player_b_y"]
-        angle_b = math.degrees(math.atan2(dy_b, dx_b))
-        if angle_b < 0:
-            angle_b += 360
-        move_b = int(angle_b / 22.5) % 16
-        hit_b = 180.0  # Aim left
-
-        game.step((move_a, hit_a), (move_b, hit_b))
-
-        renderer.render(game)
-        renderer.tick()
+    # Final save
+    if save_dir:
+        _save_agents(agent_a, agent_b, save_dir, episode_count)
 
     renderer.close()
+
+
+def _get_pygame_events():
+    """Get pygame events (lazy import)."""
+    import pygame
+    return pygame.event.get()
+
+
+def _get_pygame_const(name: str):
+    """Get pygame constant (lazy import)."""
+    import pygame
+    return getattr(pygame, name)
+
+
+def _save_agents(agent_a: Agent, agent_b: Agent, save_dir: str, episode: int) -> None:
+    """Save both agents."""
+    os.makedirs(save_dir, exist_ok=True)
+
+    path_a = os.path.join(save_dir, f"agent_a_{agent_a.config.agent_type}")
+    path_b = os.path.join(save_dir, f"agent_b_{agent_b.config.agent_type}")
+
+    agent_a.save(path_a)
+    agent_b.save(path_b)
+
+    print(f"Agents saved to {save_dir} (episode {episode})")
+
+
+def run_headless_training(
+    config: Config,
+    agent_a: Agent,
+    agent_b: Agent,
+    num_episodes: int = 100,
+    save_dir: Optional[str] = None,
+    save_interval: int = 10,
+) -> None:
+    """Run training without visualization."""
+    print(f"\n=== Headless Training ===")
+    print(f"Player A: {agent_a.config.name}")
+    print(f"Player B: {agent_b.config.name}")
+    print(f"Episodes: {num_episodes}")
+    print(f"=========================\n")
+
+    wins = [0, 0]
+
+    for episode in range(1, num_episodes + 1):
+        game = Game(config)
+        agent_a.reset()
+        agent_b.reset()
+
+        while not game.is_game_over:
+            obs = game.get_observation()
+            action_a = agent_a.act(obs)
+            action_b = agent_b.act(obs)
+            result = game.step(action_a, action_b)
+            agent_a.learn(result.rewards[0], game.is_game_over)
+            agent_b.learn(result.rewards[1], game.is_game_over)
+
+        wins[game.winner] += 1
+
+        if episode % 10 == 0:
+            print(f"Episode {episode}: Wins A={wins[0]} B={wins[1]} "
+                  f"({100*wins[0]/episode:.1f}% vs {100*wins[1]/episode:.1f}%)")
+
+        if save_dir and episode % save_interval == 0:
+            _save_agents(agent_a, agent_b, save_dir, episode)
+
+    print(f"\nFinal: A={wins[0]} wins, B={wins[1]} wins")
+
+    if save_dir:
+        _save_agents(agent_a, agent_b, save_dir, num_episodes)
+
+
+def list_agent_types() -> None:
+    """Print available agent types."""
+    print("\nAvailable agent types:")
+    print("  chase   - Simple ball-chasing AI")
+    print("  smart   - Improved chase with positioning")
+    print("  random  - Random actions (baseline)")
+    if NEURAL_AVAILABLE:
+        print("  neural  - Learning neural network agent")
+    else:
+        print("  neural  - (requires numpy)")
+    print("\nYou can also specify a path to a saved agent directory.")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="2D Tennis Simulator for AI agents"
+        description="2D Tennis Simulator - Watch AI agents learn and compete!"
     )
     parser.add_argument(
         "--mode",
-        choices=["visual", "headless", "keyboard"],
+        choices=["visual", "headless", "list"],
         default="visual",
         help="Game mode (default: visual)",
+    )
+    parser.add_argument(
+        "--agent-a",
+        type=str,
+        default="chase",
+        help="Agent type for Player A (chase/smart/random/neural or path)",
+    )
+    parser.add_argument(
+        "--agent-b",
+        type=str,
+        default="chase",
+        help="Agent type for Player B (chase/smart/random/neural or path)",
     )
     parser.add_argument(
         "--points",
@@ -262,10 +334,27 @@ def main():
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Enable debug mode with state overlay and controls",
+        help="Enable debug mode with state overlay and graphs",
+    )
+    parser.add_argument(
+        "--save-dir",
+        type=str,
+        default=None,
+        help="Directory to save trained agents",
+    )
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=100,
+        help="Number of episodes for headless training (default: 100)",
     )
 
     args = parser.parse_args()
+
+    # List mode
+    if args.mode == "list":
+        list_agent_types()
+        return
 
     # Create config
     config = Config(
@@ -274,12 +363,23 @@ def main():
         fps=args.fps,
     )
 
+    # Create agents
+    agent_a = create_agent(args.agent_a, player_id=0, config=config)
+    agent_b = create_agent(args.agent_b, player_id=1, config=config)
+
+    # Run game
     if args.mode == "headless":
-        run_headless_game(config, args.points)
-    elif args.mode == "keyboard":
-        run_keyboard_game(config)
+        run_headless_training(
+            config, agent_a, agent_b,
+            num_episodes=args.episodes,
+            save_dir=args.save_dir,
+        )
     else:
-        run_visual_game(config, debug=args.debug)
+        run_visual_game(
+            config, agent_a, agent_b,
+            debug=args.debug,
+            save_dir=args.save_dir,
+        )
 
 
 if __name__ == "__main__":
