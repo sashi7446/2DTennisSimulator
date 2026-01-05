@@ -27,14 +27,14 @@ class Config:
     player_radius: int = 15
     reach_distance: float = 30.0
 
-    # Rewards
+    # Rewards (sparse reward for 1-point episodes)
     reward_point_win: float = 1.0
     reward_point_lose: float = -1.0
-    reward_rally: float = 0.1
+    reward_rally: float = 0.0
 
     # Game settings
     max_steps_per_point: int = 1000  # Prevent infinite rallies
-    points_to_win: int = 11  # Points needed to win a game
+    points_to_win: int = 1  # Points needed to win a game (1 = episode ends after 1 point)
 
     # Display settings
     fps: int = 60

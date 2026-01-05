@@ -145,14 +145,14 @@ class TestGameHitting(unittest.TestCase):
         self.assertFalse(self.game.ball.in_flag)
 
     def test_hit_gives_rally_reward(self):
-        """Hitting should give rally reward."""
+        """Hitting should give rally reward (configured value)."""
         self.game.ball.x = self.game.player_a.x + 10
         self.game.ball.y = self.game.player_a.y
         self.game.ball.in_flag = True
 
         result = self.game.step((16, 45), (16, 0))
 
-        self.assertGreater(result.rewards[0], 0)
+        # Rally reward is configured in config (default is 0 for sparse rewards)
         self.assertEqual(result.rewards[0], self.game.config.reward_rally)
 
     def test_rally_count_increments(self):
