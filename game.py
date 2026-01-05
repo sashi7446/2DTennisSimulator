@@ -10,29 +10,30 @@ from ball import Ball, create_serve_ball
 from player import Player, create_players, NUM_MOVEMENT_ACTIONS
 
 
-def clamp_hit_angle(angle: float, player_id: int) -> float:
+def clamp_hit_angle(angle: float, player_id: int):
     """
-    Clamp hit angle to front 90° (±45° from facing direction).
+    Smoothly map hit angle (0-360°) to a ±45° range.
 
-    Player A (id=0) faces right (0°): valid range is -45° to +45°
-    Player B (id=1) faces left (180°): valid range is 135° to 225°
+    Mapping:
+    - 0° -> +45°
+    - 180° -> 0°
+    - 360° -> -45°
 
     Args:
         angle: Raw hit angle in degrees
         player_id: 0 for player A, 1 for player B
 
     Returns:
-        Clamped angle in degrees
+        Mapped angle in degrees
     """
-    if player_id == 0:
-        # Player A faces right (0°)
-        # Clamp to [-45, 45]
-        clamped = max(-45.0, min(45.0, angle))
-    else:
-        # Player B faces left (180°)
-        # Clamp to [135, 225]
-        clamped = max(135.0, min(225.0, angle))
-    return clamped
+    import math
+    # Map 0-360 to +45 to -45 using stretched cosine
+    offset = 45.0 * math.cos(math.radians(angle / 2.0))
+
+    if player_id == 0:  # Player A faces right (0°)
+        return offset
+    else:               # Player B faces left (180°)
+        return 180.0 + offset
 
 
 class GameState(Enum):
