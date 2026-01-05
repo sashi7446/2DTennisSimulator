@@ -128,8 +128,8 @@ class TennisEnv:
                 obs["player_b_y"] / field_h,
             ]
             score_obs = [
-                obs["score_a"] / self.config.points_to_win,
-                obs["score_b"] / self.config.points_to_win,
+                obs["score_a"],  # Always 0 or 1 in single-point episodes
+                obs["score_b"],
             ]
         else:
             player_obs = [
@@ -139,8 +139,8 @@ class TennisEnv:
                 obs["player_a_y"] / field_h,
             ]
             score_obs = [
-                obs["score_b"] / self.config.points_to_win,
-                obs["score_a"] / self.config.points_to_win,
+                obs["score_b"],  # Always 0 or 1 in single-point episodes
+                obs["score_a"],
             ]
 
         return np.array(ball_obs + player_obs + score_obs, dtype=np.float32)

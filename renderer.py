@@ -30,13 +30,15 @@ CYAN = (0, 255, 255)  # Debug info
 
 class Renderer:
     """
-    Pygame-based renderer for the tennis simulator.
+    Basic game renderer - shows single episode state.
 
-    Provides visual representation of:
+    This renderer displays the current episode only:
     - The field with walls and in-areas
     - Players and ball
-    - Score display
+    - Episode score (always 0-1, since 1 episode = 1 point)
     - In-flag indicator
+
+    Note: For cumulative multi-episode tracking, use DebugRenderer.
     """
 
     def __init__(self, config: Optional[Config] = None):
@@ -178,8 +180,8 @@ class Renderer:
         )
 
     def _draw_ui(self, game: Game) -> None:
-        """Draw the score and game state UI."""
-        # Score display
+        """Draw the score and game state UI (episode-level only)."""
+        # Episode score display (always 0-1 since 1 episode = 1 point)
         score_text = f"Player A: {game.scores[0]}  -  Player B: {game.scores[1]}"
         score_surface = self.font.render(score_text, True, WHITE)
         score_rect = score_surface.get_rect(
@@ -257,20 +259,50 @@ class Renderer:
 
 class DebugRenderer(Renderer):
     """
-    Extended renderer with debug overlay.
+    Training/Debug renderer - shows cumulative multi-episode statistics.
 
-    Shows additional information to help verify correct behavior:
+    Extends the basic Renderer with training-focused features:
+    - **Cumulative wins across all episodes** (not just current episode)
     - Ball trajectory (past positions)
     - In-flag state changes
     - Hit detection zones
     - Detailed state information
     - Frame-by-frame data
     - Reward graphs (cumulative and moving average)
+
+    Use this renderer when:
+    - Training agents and need to track progress over many episodes
+    - Debugging game mechanics
+    - Analyzing agent behavior over time
     """
 
     def __init__(self, config: Optional[Config] = None, trail_length: int = 60):
-        super().__init__(config)
+        # Don't call super().__init__() yet - we need to override window size first
+        if not PYGAME_AVAILABLE:
+            raise ImportError(
+                "pygame is required for rendering. Install with: pip install pygame"
+            )
+
+        self.config = config or Config()
+
+        # Calculate window size with padding for UI AND debug canvas
+        self.padding = 50
+        self.ui_height = 60
+        self.debug_canvas_height = 300  # Additional debug canvas at the bottom
+        self.window_width = self.config.field_width + 2 * self.padding
+        self.window_height = (
+            self.config.field_height + 2 * self.padding + self.ui_height + self.debug_canvas_height
+        )
+
+        # Initialize pygame
+        pygame.init()
+        self.screen = pygame.display.set_mode((self.window_width, self.window_height))
         pygame.display.set_caption("2D Tennis Simulator [DEBUG MODE]")
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+
+        self._initialized = True
 
         # Ball trajectory trail
         self.ball_trail: Deque[Tuple[float, float, bool]] = deque(maxlen=trail_length)
@@ -282,6 +314,17 @@ class DebugRenderer(Renderer):
         self.last_in_flag = False
         self.last_scores = [0, 0]
         self.frame_count = 0
+
+        # Track cumulative wins across episodes
+        self.total_wins = [0, 0]  # [Player A, Player B]
+
+        # Agent-view debug tracking
+        self.agent_a_state = None  # Latest state seen by agent A
+        self.agent_b_state = None  # Latest state seen by agent B
+        self.agent_a_action = None  # Latest action from agent A
+        self.agent_b_action = None  # Latest action from agent B
+        self.agent_a_reward = None  # Latest reward for agent A
+        self.agent_b_reward = None  # Latest reward for agent B
 
         # Debug panel settings
         self.debug_font = pygame.font.Font(None, 18)
@@ -595,11 +638,20 @@ class DebugRenderer(Renderer):
         self.cumulative_rewards_a.append(self.current_cumulative_a)
         self.cumulative_rewards_b.append(self.current_cumulative_b)
 
-    def end_episode(self) -> None:
-        """Call when an episode (game) ends to record totals."""
+    def end_episode(self, winner: Optional[int] = None) -> None:
+        """
+        Call when an episode (game) ends to record totals.
+
+        Args:
+            winner: 0 for Player A, 1 for Player B, None if no winner
+        """
         if self.cumulative_rewards_a or self.cumulative_rewards_b:
             self.episode_rewards_a.append(self.current_cumulative_a)
             self.episode_rewards_b.append(self.current_cumulative_b)
+
+        # Track cumulative wins
+        if winner is not None:
+            self.total_wins[winner] += 1
 
         # Reset for next episode
         self.current_cumulative_a = 0.0
@@ -648,6 +700,39 @@ class DebugRenderer(Renderer):
 
         # Check for state changes
         self._check_state_changes(game)
+
+    def _draw_ui(self, game: Game) -> None:
+        """Draw UI with cumulative wins (overrides base Renderer)."""
+        # Cumulative wins display (total across all episodes)
+        score_text = f"Total Wins - Player A: {self.total_wins[0]}  Player B: {self.total_wins[1]}"
+        score_surface = self.font.render(score_text, True, WHITE)
+        score_rect = score_surface.get_rect(
+            center=(self.window_width // 2, 25)
+        )
+        self.screen.blit(score_surface, score_rect)
+
+        # In-flag indicator
+        in_flag_text = "IN" if (game.ball and game.ball.in_flag) else "OUT"
+        in_flag_color = YELLOW if (game.ball and game.ball.in_flag) else GRAY
+        in_flag_surface = self.small_font.render(
+            f"Ball: {in_flag_text}", True, in_flag_color
+        )
+        self.screen.blit(in_flag_surface, (10, 45))
+
+        # Rally count
+        rally_text = f"Rally: {game.rally_count}"
+        rally_surface = self.small_font.render(rally_text, True, WHITE)
+        self.screen.blit(rally_surface, (self.window_width - 100, 45))
+
+        # Game state
+        if game.state == GameState.GAME_OVER:
+            winner = "A" if game.scores[0] > game.scores[1] else "B"
+            winner_text = f"Episode Over! Player {winner} wins!"
+            winner_surface = self.font.render(winner_text, True, WHITE)
+            winner_rect = winner_surface.get_rect(
+                center=(self.window_width // 2, self.window_height - 30)
+            )
+            self.screen.blit(winner_surface, winner_rect)
 
     def render(self, game: Game) -> None:
         """Render with debug overlays."""

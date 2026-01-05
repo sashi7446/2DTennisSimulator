@@ -112,6 +112,7 @@ def run_visual_game(
 
     running = True
     episode_count = 0
+    total_wins = [0, 0]  # Track total wins for [Player A, Player B]
     save_requested = False
 
     while running:
@@ -123,7 +124,7 @@ def run_visual_game(
         agent_a.reset()
         agent_b.reset()
 
-        print(f"Episode {episode_count} started")
+        print(f"Episode {episode_count} started (Total wins: A={total_wins[0]}, B={total_wins[1]})")
 
         while running and not game.is_game_over:
             # Handle events
@@ -170,15 +171,17 @@ def run_visual_game(
             renderer.render(game)
             renderer.tick()
 
-        # Episode ended
-        if debug and hasattr(renderer, 'end_episode'):
-            renderer.end_episode()
-
-        # Print episode result
+        # Print episode result and update tracking
         if game.is_game_over:
             winner = "A" if game.winner == 0 else "B"
+            total_wins[game.winner] += 1
+
+            # Update debug renderer with winner
+            if debug and hasattr(renderer, 'end_episode'):
+                renderer.end_episode(winner=game.winner)
+
             print(f"Episode {episode_count}: Player {winner} wins! "
-                  f"Score: {game.scores[0]}-{game.scores[1]}")
+                  f"Total wins: A={total_wins[0]}, B={total_wins[1]}")
 
             # Print learning stats if available
             for name, agent in [("A", agent_a), ("B", agent_b)]:
@@ -314,22 +317,16 @@ def main():
         help="Agent type for Player B (chase/smart/random/neural or path)",
     )
     parser.add_argument(
-        "--points",
-        type=int,
-        default=11,
-        help="Points to win (default: 11)",
-    )
-    parser.add_argument(
         "--speed",
         type=float,
-        default=5.0,
-        help="Ball speed (default: 5.0)",
+        default=None,
+        help=f"Ball speed (default: {Config().ball_speed})",
     )
     parser.add_argument(
         "--fps",
         type=int,
-        default=60,
-        help="Frames per second for visual mode (default: 60)",
+        default=None,
+        help=f"Frames per second for visual mode (default: {Config().fps})",
     )
     parser.add_argument(
         "--debug",
@@ -356,12 +353,14 @@ def main():
         list_agent_types()
         return
 
-    # Create config
-    config = Config(
-        ball_speed=args.speed,
-        points_to_win=args.points,
-        fps=args.fps,
-    )
+    # Create config - only override if CLI argument was provided
+    config_kwargs = {}
+    if args.speed is not None:
+        config_kwargs['ball_speed'] = args.speed
+    if args.fps is not None:
+        config_kwargs['fps'] = args.fps
+
+    config = Config(**config_kwargs)
 
     # Create agents
     agent_a = create_agent(args.agent_a, player_id=0, config=config)

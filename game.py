@@ -120,11 +120,8 @@ class Game:
             last_hit_by=self.ball.last_hit_by if self.ball else None,
         )
 
-        # Check if game is over
-        if self.scores[winner] >= self.config.points_to_win:
-            self.state = GameState.GAME_OVER
-        else:
-            self.state = GameState.POINT_OVER
+        # Game always ends after 1 point (1 point = 1 episode)
+        self.state = GameState.GAME_OVER
 
         return result
 

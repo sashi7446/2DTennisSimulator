@@ -34,7 +34,8 @@ class Config:
 
     # Game settings
     max_steps_per_point: int = 1000  # Prevent infinite rallies
-    points_to_win: int = 1  # Points needed to win a game (1 = episode ends after 1 point)
+    # Note: Game engine always ends after 1 point (1 point = 1 episode)
+    # Multi-episode tracking is handled by the training loop, not the game engine
 
     # Display settings
     fps: int = 60
@@ -57,7 +58,6 @@ class Config:
             "reward_point_lose": self.reward_point_lose,
             "reward_rally": self.reward_rally,
             "max_steps_per_point": self.max_steps_per_point,
-            "points_to_win": self.points_to_win,
             "fps": self.fps,
         }
 

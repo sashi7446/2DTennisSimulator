@@ -12,3 +12,5 @@ htmlcov/
 .env
 .venv/
 venv/
+my_agents/
+saved_agents/

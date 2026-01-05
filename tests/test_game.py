@@ -37,10 +37,10 @@ class TestGameInitialization(unittest.TestCase):
 
     def test_custom_config(self):
         """Game should accept custom config."""
-        config = Config(field_width=1000, points_to_win=5)
+        config = Config(field_width=1000, ball_speed=10.0)
         game = Game(config)
         self.assertEqual(game.config.field_width, 1000)
-        self.assertEqual(game.config.points_to_win, 5)
+        self.assertEqual(game.config.ball_speed, 10.0)
 
 
 class TestGameStep(unittest.TestCase):
@@ -243,13 +243,11 @@ class TestGameOver(unittest.TestCase):
     """Test game over conditions."""
 
     def setUp(self):
-        self.config = Config(points_to_win=2)  # Quick game
+        self.config = Config()  # 1 point = 1 episode (always)
         self.game = Game(self.config)
 
-    def test_game_over_when_points_reached(self):
-        """Game should be over when a player reaches points_to_win."""
-        self.game.scores[0] = 1  # One point away from winning
-
+    def test_game_over_after_one_point(self):
+        """Game should be over after 1 point (1 point = 1 episode)."""
         # Force a point win for player A
         self.game.ball.x = self.config.field_width - 5
         self.game.ball.vx = 10
@@ -262,22 +260,13 @@ class TestGameOver(unittest.TestCase):
         self.assertTrue(result.done)
         self.assertEqual(self.game.state, GameState.GAME_OVER)
         self.assertEqual(self.game.winner, 0)
+        self.assertEqual(self.game.scores[0], 1)
 
-    def test_game_not_over_before_points(self):
-        """Game should continue until points_to_win reached."""
-        self.game.scores[0] = 0
-
-        # Force a point win
-        self.game.ball.x = self.config.field_width - 5
-        self.game.ball.vx = 10
-        self.game.ball.vy = 0
-        self.game.ball.in_flag = True
-        self.game.ball.last_hit_by = 0
-
-        result = self.game.step((16, 0), (16, 0))
-
-        self.assertFalse(result.done)  # Game continues
-        self.assertEqual(self.game.state, GameState.POINT_OVER)
+    def test_game_starts_fresh(self):
+        """Game should start with 0-0 score."""
+        self.assertEqual(self.game.scores[0], 0)
+        self.assertEqual(self.game.scores[1], 0)
+        self.assertFalse(self.game.is_game_over)
 
 
 class TestGameReset(unittest.TestCase):
