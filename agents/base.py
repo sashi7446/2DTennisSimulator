@@ -152,13 +152,21 @@ class Agent(ABC):
 
 def get_agent_class(agent_type: str) -> type:
     """Get agent class by type name."""
-    from agents.chase import ChaseAgent
+    from agents.chase import ChaseAgent, SmartChaseAgent
     from agents.random_agent import RandomAgent
 
     agent_classes = {
         "chase": ChaseAgent,
+        "smart_chase": SmartChaseAgent,
         "random": RandomAgent,
     }
+
+    # Add neural agent if numpy is available
+    try:
+        from agents.neural import NeuralAgent
+        agent_classes["neural"] = NeuralAgent
+    except ImportError:
+        pass
 
     if agent_type not in agent_classes:
         raise ValueError(f"Unknown agent type: {agent_type}. "
