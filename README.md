@@ -115,8 +115,9 @@ import numpy as np
 env = TennisEnv(render_mode="human")
 obs, info = env.reset()
 
-# アクション: (移動方向 0-16, 打つ角度)
-action = (0, np.array([45.0]))
+# アクション: (移動方向 0-16, 打つ角度 0-360)
+# ※打つ角度は自動的に正面±45度に滑らかにマッピングされます
+action = (0, np.array([0.0]))
 obs, reward, terminated, truncated, info = env.step(action)
 
 # シングルプレイヤー環境（相手は自動AI）
@@ -143,6 +144,16 @@ env = SinglePlayerTennisEnv(opponent_policy="chase")
 - インフラグがONである
 
 両方を満たす場合のみ打ち返し可能。
+
+### 打球方向の制御
+AI学習の安定化のため、エージェントが出力する打球角度（0-360度）は、プレイヤーの正面方向から **±45度** の有効範囲に滑らかに写像されます：
+
+- `入力 0度` → `+45度`（上方向）
+- `入力 180度` → `0度`（正面）
+- `入力 360度` → `-45度`（下方向）
+
+計算式：`offset = 45.0 * cos(radians(input_angle / 2))`
+この写像により、境界値での勾配消失を防ぎ、学習効率を向上させています。
 
 ## 設定パラメータ
 
