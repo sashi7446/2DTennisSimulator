@@ -115,7 +115,7 @@ class Renderer:
 
 
 class DebugRenderer(Renderer):
-    """Training/debug renderer with trajectory, reward graphs, and cumulative stats."""
+    """Training/debug renderer with separate debug canvas below game field."""
 
     def __init__(self, config: Optional[Config] = None, trail_length: int = 60):
         if not PYGAME_AVAILABLE:
@@ -125,7 +125,8 @@ class DebugRenderer(Renderer):
         self.padding, self.ui_height = 50, 60
         self.debug_canvas_height = 300
         self.window_width = self.config.field_width + 2 * self.padding
-        self.window_height = self.config.field_height + 2 * self.padding + self.ui_height + self.debug_canvas_height
+        self.game_area_height = self.config.field_height + 2 * self.padding + self.ui_height
+        self.window_height = self.game_area_height + self.debug_canvas_height
 
         pygame.init()
         self.screen = pygame.display.set_mode((self.window_width, self.window_height))
@@ -135,6 +136,10 @@ class DebugRenderer(Renderer):
         self.small_font = pygame.font.Font(None, 24)
         self.debug_font = pygame.font.Font(None, 18)
         self._initialized = True
+
+        # Separate surfaces: game and debug
+        self.game_surface = pygame.Surface((self.window_width, self.game_area_height))
+        self.debug_surface = pygame.Surface((self.window_width, self.debug_canvas_height))
 
         self.ball_trail: Deque[Tuple[float, float, bool]] = deque(maxlen=trail_length)
         self.event_log: Deque[str] = deque(maxlen=8)
@@ -151,6 +156,12 @@ class DebugRenderer(Renderer):
         self.episode_rewards_a: List[float] = []
         self.episode_rewards_b: List[float] = []
         self.moving_avg_window, self.graph_max_points = 20, 200
+
+        # Agent debug state (set via step_debug)
+        self.agent_obs: Optional[dict] = None
+        self.agent_reward: float = 0.0
+        self.agent_action: Optional[Tuple[int, float]] = None
+        self.agent_player_id: int = 0
 
     def _draw_ball_trajectory(self, game: Game) -> None:
         if not self.show_trajectory or len(self.ball_trail) < 2:
@@ -209,79 +220,6 @@ class DebugRenderer(Renderer):
         line(f"  A: ({game.player_a.x:.0f}, {game.player_a.y:.0f})", RED)
         line(f"  B: ({game.player_b.x:.0f}, {game.player_b.y:.0f})", BLUE)
 
-    def _draw_event_log(self) -> None:
-        if not self.event_log:
-            return
-        x, y = self.window_width - 200, self.padding + self.ui_height + 10
-        for i, ev in enumerate(self.event_log):
-            alpha = int(255 * (1 - i / len(self.event_log)))
-            self.screen.blit(self.debug_font.render(ev, True, (alpha, alpha, alpha)), (x, y + i * 14))
-
-    def _draw_controls_help(self) -> None:
-        helps = ["Debug Controls:", "T - Trajectory", "D - Distances", "P - State panel",
-                 "G - Graphs", "SPACE - Pause", "N - Step"]
-        x, y = self.window_width - 150, self.window_height - 120
-        for i, t in enumerate(helps):
-            self.screen.blit(self.debug_font.render(t, True, CYAN if i == 0 else GRAY), (x, y + i * 14))
-
-    def _draw_graph(self, x: int, y: int, width: int, height: int,
-                     data_a: List[float], data_b: List[float], title: str, show_zero_line: bool = True) -> None:
-        surf = pygame.Surface((width, height))
-        surf.set_alpha(200)
-        surf.fill(BLACK)
-        self.screen.blit(surf, (x, y))
-        pygame.draw.rect(self.screen, WHITE, (x, y, width, height), 1)
-        self.screen.blit(self.debug_font.render(title, True, WHITE), (x + 5, y + 2))
-
-        gx, gy, gw, gh = x + 5, y + 18, width - 10, height - 23
-        if len(data_a) < 2 and len(data_b) < 2:
-            self.screen.blit(self.debug_font.render("No data", True, GRAY), (x + width // 2 - 20, y + height // 2))
-            return
-
-        all_data = data_a + data_b
-        if not all_data:
-            return
-        min_v, max_v = min(all_data), max(all_data)
-        rng = max_v - min_v or 1
-        min_v, max_v = min_v - rng * 0.1, max_v + rng * 0.1
-        rng = max_v - min_v
-
-        if show_zero_line and min_v < 0 < max_v:
-            zy = gy + gh - int(-min_v / rng * gh)
-            pygame.draw.line(self.screen, GRAY, (gx, zy), (gx + gw, zy), 1)
-
-        def draw_series(data, color):
-            if len(data) < 2:
-                return
-            pts = [(gx + int(i / (len(data) - 1) * gw),
-                    max(gy, min(gy + gh, gy + gh - int((v - min_v) / rng * gh))))
-                   for i, v in enumerate(data)]
-            pygame.draw.lines(self.screen, color, False, pts, 2)
-
-        draw_series(data_a, RED)
-        draw_series(data_b, BLUE)
-        if data_a:
-            self.screen.blit(self.debug_font.render(f"A:{data_a[-1]:.2f}", True, RED), (x + width - 60, y + 2))
-        if data_b:
-            self.screen.blit(self.debug_font.render(f"B:{data_b[-1]:.2f}", True, BLUE), (x + width - 60, y + 12))
-
-    def _draw_reward_graphs(self) -> None:
-        if not self.show_graphs:
-            return
-        gw, gh, m = 180, 80, 5
-        bx = self.padding + 200
-        by = self.padding + self.ui_height + self.config.field_height - gh * 2 - m * 2
-
-        self._draw_graph(bx, by, gw, gh, self.cumulative_rewards_a[-self.graph_max_points:],
-                         self.cumulative_rewards_b[-self.graph_max_points:], "Cumulative (Episode)")
-        self._draw_graph(bx + gw + m, by, gw, gh, self._get_moving_averages(self.episode_rewards_a),
-                         self._get_moving_averages(self.episode_rewards_b), f"Reward ({self.moving_avg_window}-ep MA)")
-
-        ly = by + gh + 5
-        self.screen.blit(self.debug_font.render("■ Player A", True, RED), (bx, ly))
-        self.screen.blit(self.debug_font.render("■ Player B", True, BLUE), (bx + 80, ly))
-        self.screen.blit(self.debug_font.render(f"Episodes: {len(self.episode_rewards_a)}", True, WHITE), (bx + gw + m, ly))
-
     def _get_moving_averages(self, rewards: List[float]) -> List[float]:
         if not rewards:
             return []
@@ -339,20 +277,150 @@ class DebugRenderer(Renderer):
             text = self.font.render(f"Episode Over! Player {winner} wins!", True, WHITE)
             self.screen.blit(text, text.get_rect(center=(self.window_width // 2, self.window_height - 30)))
 
+    def step_debug(self, observation: dict, reward: float, action: Tuple[int, float], player_id: int = 0) -> None:
+        """Store agent's observation, reward, and action for debug visualization."""
+        self.agent_obs = observation
+        self.agent_reward = reward
+        self.agent_action = action
+        self.agent_player_id = player_id
+
+    def _draw_agent_debug_point(self) -> None:
+        """Draw agent's observed position on game surface (separate from engine rendering)."""
+        if self.agent_obs is None:
+            return
+        prefix = "player_a" if self.agent_player_id == 0 else "player_b"
+        x_key, y_key = f"{prefix}_x", f"{prefix}_y"
+        if x_key not in self.agent_obs or y_key not in self.agent_obs:
+            return
+        x, y = self.agent_obs[x_key], self.agent_obs[y_key]
+        pos = self._field_to_screen(x, y)
+        # Draw diamond marker for agent's observed position
+        color = CYAN if self.agent_player_id == 0 else ORANGE
+        size = 8
+        pts = [(pos[0], pos[1] - size), (pos[0] + size, pos[1]),
+               (pos[0], pos[1] + size), (pos[0] - size, pos[1])]
+        pygame.draw.polygon(self.game_surface, color, pts, 2)
+
+    def _draw_debug_canvas(self) -> None:
+        """Draw debug info on the separate debug surface below game field."""
+        self.debug_surface.fill((30, 30, 30))
+
+        # Title
+        self.debug_surface.blit(self.debug_font.render("=== DEBUG CANVAS ===", True, CYAN), (10, 5))
+
+        # Agent observation display
+        if self.agent_obs is not None:
+            y = 25
+            self.debug_surface.blit(self.debug_font.render(f"Agent {self.agent_player_id} View:", True, WHITE), (10, y))
+            y += 16
+            self.debug_surface.blit(self.debug_font.render(f"Reward: {self.agent_reward:.3f}", True, YELLOW), (10, y))
+            y += 16
+            if self.agent_action:
+                self.debug_surface.blit(self.debug_font.render(
+                    f"Action: move={self.agent_action[0]}, hit_angle={self.agent_action[1]:.1f}", True, WHITE), (10, y))
+            y += 20
+
+            # Show key observation values
+            obs = self.agent_obs
+            prefix = "player_a" if self.agent_player_id == 0 else "player_b"
+            opp_prefix = "player_b" if self.agent_player_id == 0 else "player_a"
+            self.debug_surface.blit(self.debug_font.render(
+                f"My pos: ({obs.get(f'{prefix}_x', 0):.1f}, {obs.get(f'{prefix}_y', 0):.1f})", True, CYAN), (10, y))
+            y += 14
+            self.debug_surface.blit(self.debug_font.render(
+                f"Opp pos: ({obs.get(f'{opp_prefix}_x', 0):.1f}, {obs.get(f'{opp_prefix}_y', 0):.1f})", True, GRAY), (10, y))
+            y += 14
+            self.debug_surface.blit(self.debug_font.render(
+                f"Ball: ({obs.get('ball_x', 0):.1f}, {obs.get('ball_y', 0):.1f})", True, YELLOW), (10, y))
+
+        # Event log on debug surface
+        x = 200
+        self.debug_surface.blit(self.debug_font.render("Events:", True, WHITE), (x, 25))
+        for i, ev in enumerate(self.event_log):
+            alpha = int(255 * (1 - i / max(1, len(self.event_log))))
+            self.debug_surface.blit(self.debug_font.render(ev, True, (alpha, alpha, alpha)), (x, 41 + i * 14))
+
+        # Reward graphs on debug surface
+        if self.show_graphs:
+            gw, gh = 180, 80
+            self._draw_graph_on_surface(self.debug_surface, 400, 20, gw, gh,
+                                        self.cumulative_rewards_a[-self.graph_max_points:],
+                                        self.cumulative_rewards_b[-self.graph_max_points:], "Cumulative (Episode)")
+            self._draw_graph_on_surface(self.debug_surface, 400 + gw + 10, 20, gw, gh,
+                                        self._get_moving_averages(self.episode_rewards_a),
+                                        self._get_moving_averages(self.episode_rewards_b), f"Reward ({self.moving_avg_window}-ep MA)")
+            ly = 105
+            self.debug_surface.blit(self.debug_font.render("■ A", True, RED), (400, ly))
+            self.debug_surface.blit(self.debug_font.render("■ B", True, BLUE), (430, ly))
+            self.debug_surface.blit(self.debug_font.render(f"Ep: {len(self.episode_rewards_a)}", True, WHITE), (470, ly))
+
+        # Controls help on debug surface
+        helps = ["T-Traj", "D-Dist", "P-Panel", "G-Graph", "SPC-Pause", "N-Step"]
+        hx = self.window_width - 300
+        self.debug_surface.blit(self.debug_font.render("Controls: " + " | ".join(helps), True, GRAY), (hx, self.debug_canvas_height - 20))
+
+    def _draw_graph_on_surface(self, surface: pygame.Surface, x: int, y: int, width: int, height: int,
+                                data_a: List[float], data_b: List[float], title: str) -> None:
+        """Draw graph on specified surface."""
+        pygame.draw.rect(surface, BLACK, (x, y, width, height))
+        pygame.draw.rect(surface, WHITE, (x, y, width, height), 1)
+        surface.blit(self.debug_font.render(title, True, WHITE), (x + 5, y + 2))
+
+        gx, gy, gw, gh = x + 5, y + 18, width - 10, height - 23
+        if len(data_a) < 2 and len(data_b) < 2:
+            surface.blit(self.debug_font.render("No data", True, GRAY), (x + width // 2 - 20, y + height // 2))
+            return
+
+        all_data = data_a + data_b
+        if not all_data:
+            return
+        min_v, max_v = min(all_data), max(all_data)
+        rng = max_v - min_v or 1
+        min_v, max_v = min_v - rng * 0.1, max_v + rng * 0.1
+        rng = max_v - min_v
+
+        if min_v < 0 < max_v:
+            zy = gy + gh - int(-min_v / rng * gh)
+            pygame.draw.line(surface, GRAY, (gx, zy), (gx + gw, zy), 1)
+
+        def draw_series(data, color):
+            if len(data) < 2:
+                return
+            pts = [(gx + int(i / (len(data) - 1) * gw),
+                    max(gy, min(gy + gh, gy + gh - int((v - min_v) / rng * gh))))
+                   for i, v in enumerate(data)]
+            pygame.draw.lines(surface, color, False, pts, 2)
+
+        draw_series(data_a, RED)
+        draw_series(data_b, BLUE)
+        if data_a:
+            surface.blit(self.debug_font.render(f"A:{data_a[-1]:.1f}", True, RED), (x + width - 50, y + 2))
+        if data_b:
+            surface.blit(self.debug_font.render(f"B:{data_b[-1]:.1f}", True, BLUE), (x + width - 50, y + 12))
+
     def render(self, game: Game) -> None:
+        # Draw game on game_surface
+        old_screen = self.screen
+        self.screen = self.game_surface
         self._draw_field(game)
         self._draw_ball_trajectory(game)
         self._draw_ball(game)
         self._draw_players(game)
+        self._draw_agent_debug_point()
         self._draw_distances(game)
         self._draw_state_panel(game)
-        self._draw_event_log()
-        self._draw_reward_graphs()
-        self._draw_controls_help()
         self._draw_ui(game)
         if self.paused:
             text = self.font.render("PAUSED", True, ORANGE)
-            self.screen.blit(text, text.get_rect(center=(self.window_width // 2, self.window_height // 2 - 50)))
+            self.game_surface.blit(text, text.get_rect(center=(self.window_width // 2, self.game_area_height // 2)))
+        self.screen = old_screen
+
+        # Draw debug canvas
+        self._draw_debug_canvas()
+
+        # Blit both surfaces to main screen
+        self.screen.blit(self.game_surface, (0, 0))
+        self.screen.blit(self.debug_surface, (0, self.game_area_height))
         pygame.display.flip()
 
     def handle_events(self) -> bool:
