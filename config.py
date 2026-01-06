@@ -12,10 +12,10 @@ class Config:
     field_width: int = 800
     field_height: int = 400
 
-    # In-area dimensions (3:2 aspect ratio)
+    # In-area dimensions (3:4 aspect ratio)
     area_width: int = 150
-    area_height: int = 100
-    area_gap: int = 100  # Gap between Area A and Area B
+    area_height: int = 200
+    area_gap: int = 150  # Gap between Area A and Area B
 
     # Ball properties
     ball_speed: float = 5.0
