@@ -2,178 +2,78 @@
 
 import math
 from typing import Dict, Any, Tuple, Optional
-from pathlib import Path
 
 from agents.base import Agent, AgentConfig
 
 
-class ChaseAgent(Agent):
-    """
-    Simple rule-based agent that chases the ball.
+def _get_my_pos(obs: Dict[str, Any], player_id: int) -> Tuple[float, float]:
+    """Get player's own position from observation."""
+    prefix = "player_a" if player_id == 0 else "player_b"
+    return obs[f"{prefix}_x"], obs[f"{prefix}_y"]
 
-    Strategy:
-    - Always move toward the ball
-    - Hit toward the opponent's side
-    """
+
+def _angle_to_direction(dx: float, dy: float) -> int:
+    """Convert delta to discrete 16-direction (or 16 for stay)."""
+    if abs(dx) < 1 and abs(dy) < 1:
+        return 16
+    angle = math.degrees(math.atan2(dy, dx))
+    return int((angle % 360) / 22.5) % 16
+
+
+class ChaseAgent(Agent):
+    """Simple agent that chases the ball and hits toward opponent."""
 
     def __init__(self, config: Optional[AgentConfig] = None):
-        if config is None:
-            config = AgentConfig(
-                name="ChaseBot",
-                agent_type="chase",
-                version="1.0",
-                description="Simple ball-chasing AI that always moves toward the ball",
-                parameters={
-                    "aggression": 1.0,  # How directly to chase (1.0 = straight line)
-                },
-            )
-        super().__init__(config)
-
-        # Field dimensions (set when agent is used)
-        self.field_width: float = 800
-        self.field_height: float = 400
+        super().__init__(config or AgentConfig(
+            name="ChaseBot", agent_type="chase", version="1.0",
+            description="Ball-chasing AI", parameters={"aggression": 1.0}
+        ))
+        self.field_width, self.field_height = 800.0, 400.0
 
     def set_field_dimensions(self, width: float, height: float) -> None:
-        """Set field dimensions for hit angle calculation."""
-        self.field_width = width
-        self.field_height = height
+        self.field_width, self.field_height = width, height
 
     def act(self, observation: Dict[str, Any]) -> Tuple[int, float]:
-        """Move toward ball, hit toward opponent."""
-        # Get positions based on player_id
-        if self.player_id == 0:
-            my_x = observation["player_a_x"]
-            my_y = observation["player_a_y"]
-        else:
-            my_x = observation["player_b_x"]
-            my_y = observation["player_b_y"]
-
-        ball_x = observation["ball_x"]
-        ball_y = observation["ball_y"]
-
-        # Calculate direction to ball
-        dx = ball_x - my_x
-        dy = ball_y - my_y
-
-        # Convert to angle
-        angle = math.degrees(math.atan2(dy, dx))
-        if angle < 0:
-            angle += 360
-
-        # Discretize to 16 directions
-        move_direction = int(angle / 22.5) % 16
-
-        # Hit toward opponent's side
-        if self.player_id == 0:
-            # Player A hits right
-            hit_angle = 0.0
-        else:
-            # Player B hits left
-            hit_angle = 180.0
-
-        return (move_direction, hit_angle)
-
-    def get_info(self) -> Dict[str, Any]:
-        """Get agent info with additional details."""
-        info = super().get_info()
-        info["strategy"] = "Chase ball directly, hit toward opponent"
-        return info
+        my_x, my_y = _get_my_pos(observation, self.player_id)
+        dx = observation["ball_x"] - my_x
+        dy = observation["ball_y"] - my_y
+        return (_angle_to_direction(dx, dy), 0.0 if self.player_id == 0 else 180.0)
 
 
 class SmartChaseAgent(ChaseAgent):
-    """
-    Improved chase agent with better positioning.
-
-    Improvements over basic ChaseAgent:
-    - Returns to home position when ball is far
-    - Varies hit angles slightly
-    - Considers ball velocity for interception
-    """
+    """Chase agent with positioning awareness and ball prediction."""
 
     def __init__(self, config: Optional[AgentConfig] = None):
-        if config is None:
-            config = AgentConfig(
-                name="SmartChaseBot",
-                agent_type="chase",
-                version="2.0",
-                description="Improved chase AI with positioning awareness",
-                parameters={
-                    "home_return_threshold": 200,  # Distance to return home
-                    "hit_angle_variance": 15,  # Random variance in hit angle
-                },
-            )
-        super().__init__(config)
+        super().__init__(config or AgentConfig(
+            name="SmartChaseBot", agent_type="chase", version="2.0",
+            description="Chase AI with positioning",
+            parameters={"home_return_threshold": 200, "hit_angle_variance": 15}
+        ))
 
     def act(self, observation: Dict[str, Any]) -> Tuple[int, float]:
-        """Smart chase with positioning."""
         import random
 
-        # Get positions based on player_id
-        if self.player_id == 0:
-            my_x = observation["player_a_x"]
-            my_y = observation["player_a_y"]
-            home_x = self.field_width * 0.2  # Left side home
-        else:
-            my_x = observation["player_b_x"]
-            my_y = observation["player_b_y"]
-            home_x = self.field_width * 0.8  # Right side home
-
+        my_x, my_y = _get_my_pos(observation, self.player_id)
+        home_x = self.field_width * (0.2 if self.player_id == 0 else 0.8)
         home_y = self.field_height / 2
-        ball_x = observation["ball_x"]
-        ball_y = observation["ball_y"]
-        ball_vx = observation["ball_vx"]
-        ball_vy = observation["ball_vy"]
 
-        # Predict ball position (simple prediction)
-        predict_frames = 10
-        predicted_x = ball_x + ball_vx * predict_frames
-        predicted_y = ball_y + ball_vy * predict_frames
+        ball_x, ball_y = observation["ball_x"], observation["ball_y"]
+        ball_vx, ball_vy = observation["ball_vx"], observation["ball_vy"]
 
-        # Clamp to field
-        predicted_x = max(0, min(predicted_x, self.field_width))
-        predicted_y = max(0, min(predicted_y, self.field_height))
+        # Predict ball position
+        pred_x = max(0, min(ball_x + ball_vx * 10, self.field_width))
+        pred_y = max(0, min(ball_y + ball_vy * 10, self.field_height))
 
-        # Calculate distance to ball
-        ball_dist = math.sqrt((ball_x - my_x) ** 2 + (ball_y - my_y) ** 2)
-
-        # Decision: chase ball or return home
+        ball_dist = math.hypot(ball_x - my_x, ball_y - my_y)
         threshold = self.config.parameters.get("home_return_threshold", 200)
 
         if ball_dist < threshold:
-            # Chase the predicted ball position
-            target_x = predicted_x
-            target_y = predicted_y
+            target_x, target_y = pred_x, pred_y
         else:
-            # Ball is far, move toward home position
-            # But bias toward ball's y position
-            target_x = home_x
-            target_y = (home_y + ball_y) / 2
+            target_x, target_y = home_x, (home_y + ball_y) / 2
 
-        # Calculate direction to target
-        dx = target_x - my_x
-        dy = target_y - my_y
-
-        if abs(dx) < 1 and abs(dy) < 1:
-            move_direction = 16  # Stay
-        else:
-            angle = math.degrees(math.atan2(dy, dx))
-            if angle < 0:
-                angle += 360
-            move_direction = int(angle / 22.5) % 16
-
-        # Hit with some variance
+        move_dir = _angle_to_direction(target_x - my_x, target_y - my_y)
+        base_angle = 0.0 if self.player_id == 0 else 180.0
         variance = self.config.parameters.get("hit_angle_variance", 15)
-        if self.player_id == 0:
-            base_angle = 0.0
-        else:
-            base_angle = 180.0
 
-        hit_angle = base_angle + random.uniform(-variance, variance)
-
-        return (move_direction, hit_angle)
-
-    def get_info(self) -> Dict[str, Any]:
-        """Get agent info with additional details."""
-        info = super().get_info()
-        info["strategy"] = "Smart positioning with ball prediction"
-        return info
+        return (move_dir, base_angle + random.uniform(-variance, variance))
