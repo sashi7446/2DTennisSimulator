@@ -14,3 +14,4 @@ htmlcov/
 venv/
 my_agents/
 saved_agents/
+*.ipynb
