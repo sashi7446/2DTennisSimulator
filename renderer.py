@@ -302,7 +302,8 @@ class DebugRenderer(GameRenderer):
         self.reward_graph = RewardGraphOverlay()
 
     def render(self, game: Game, total_wins: Optional[Tuple[int, int]] = None,
-               stats=None, input_state=None, frame_count: int = 0) -> None:
+               stats=None, input_state=None, frame_count: int = 0,
+               actual_fps: float = 0.0) -> None:
         """Render game with debug overlays.
 
         Args:
@@ -311,6 +312,7 @@ class DebugRenderer(GameRenderer):
             stats: StatsTracker instance for graphs
             input_state: InputState for display toggles
             frame_count: Current frame number
+            actual_fps: Measured FPS for display
         """
         # Base rendering
         self._draw_field(game)
@@ -350,6 +352,10 @@ class DebugRenderer(GameRenderer):
         # Controls help
         self._draw_controls_help()
 
+        # Speed and FPS indicator
+        if input_state:
+            self._draw_speed_indicator(input_state, actual_fps)
+
         # UI
         self._draw_ui(game, total_wins)
 
@@ -371,11 +377,28 @@ class DebugRenderer(GameRenderer):
             self.screen.blit(self.debug_font.render(ev, True, (alpha, alpha, alpha)), (x, y + i * 14))
 
     def _draw_controls_help(self) -> None:
-        helps = ["Debug Controls:", "T - Trajectory", "D - Distances", "P - State panel",
-                 "G - Graphs", "SPACE - Pause", "N - Step"]
-        x, y = self.window_width - 150, self.window_height - 120
+        helps = ["Controls:", "1-4: Speed", "R: Reset", "F: FPS",
+                 "T/D/P/G: Overlays", "SPACE: Pause", "N: Step"]
+        x, y = self.window_width - 120, self.window_height - 115
         for i, t in enumerate(helps):
             self.screen.blit(self.debug_font.render(t, True, CYAN if i == 0 else GRAY), (x, y + i * 14))
+
+    def _draw_speed_indicator(self, input_state, actual_fps: float) -> None:
+        """Draw speed level and FPS indicator."""
+        speed_names = ["1x", "2x", "4x", "MAX"]
+        speed_level = input_state.speed_level
+        speed_text = speed_names[speed_level]
+
+        # Speed indicator (top-left area, below ball status)
+        color = CYAN if speed_level == 0 else ORANGE if speed_level < 3 else RED
+        self.screen.blit(self.small_font.render(f"Speed: {speed_text}", True, color),
+                         (self.window_width // 2 - 50, 45))
+
+        # FPS display (if enabled)
+        if input_state.show_fps:
+            fps_color = GREEN if actual_fps >= 55 else ORANGE if actual_fps >= 30 else RED
+            self.screen.blit(self.small_font.render(f"FPS: {actual_fps:.0f}", True, fps_color),
+                             (self.window_width // 2 + 50, 45))
 
     def _draw_ui(self, game: Game, total_wins: Optional[Tuple[int, int]] = None) -> None:
         if total_wins:

@@ -71,11 +71,12 @@ def run_visual_game(
     """Run a game with pygame visualization and agent control.
 
     Responsibilities are cleanly separated:
-    - InputHandler: processes events, manages pause/step state
+    - InputHandler: processes events, manages pause/step/speed state
     - StatsTracker: tracks rewards, wins, events
     - Renderer: draws game state to screen (passive)
     - Game: runs simulation logic
     """
+    import time
     try:
         from renderer import GameRenderer, DebugRenderer
         from input_handler import InputHandler
@@ -92,13 +93,12 @@ def run_visual_game(
     if debug:
         renderer = DebugRenderer(config)
         print("\n=== DEBUG MODE ===")
-        print("T - Toggle trajectory")
-        print("D - Toggle distances")
-        print("P - Toggle state panel")
-        print("G - Toggle graphs")
-        print("SPACE - Pause/Resume")
-        print("N - Step (when paused)")
-        print("S - Save agents")
+        print("1-4  - Speed (1x/2x/4x/Max)")
+        print("T/D/P/G - Toggle overlays")
+        print("F    - Toggle FPS display")
+        print("SPACE - Pause, N - Step")
+        print("R    - Reset episode")
+        print("S    - Save agents")
         print("==================\n")
     else:
         renderer = GameRenderer(config)
@@ -111,6 +111,13 @@ def run_visual_game(
     episode_count = 0
     total_wins = [0, 0]
     frame_count = 0
+    step_count = 0  # For render skipping
+
+    # FPS measurement
+    fps_update_interval = 0.5  # Update FPS every 0.5 seconds
+    fps_last_time = time.time()
+    fps_frame_count = 0
+    actual_fps = 0.0
 
     while input_handler.running:
         # Start new episode
@@ -118,21 +125,22 @@ def run_visual_game(
         episode_count += 1
         agent_a.reset()
         agent_b.reset()
-
-        # Track in_flag changes for event log
+        step_count = 0
         last_in_flag = False
 
         print(f"Episode {episode_count} started (Total wins: A={total_wins[0]}, B={total_wins[1]})")
 
         while input_handler.running and not game.is_game_over:
-            # Input processing (separate from rendering)
             input_handler.process_events()
 
-            # Save if requested
+            # Reset episode if requested
+            if input_handler.consume_reset_request():
+                break
+
             if input_handler.consume_save_request() and save_dir:
                 _save_agents(agent_a, agent_b, save_dir, episode_count)
 
-            # Game step (controlled by InputHandler, not Renderer)
+            # Game step
             if input_handler.should_step():
                 obs = game.get_observation()
                 action_a = agent_a.act(obs)
@@ -141,30 +149,45 @@ def run_visual_game(
 
                 agent_a.learn(result.rewards[0], game.is_game_over)
                 agent_b.learn(result.rewards[1], game.is_game_over)
+                step_count += 1
 
                 if debug and stats:
                     stats.add_reward(result.rewards[0], result.rewards[1])
                     stats.next_frame()
                     frame_count += 1
 
-                    # Log state changes
                     if game.ball and game.ball.in_flag != last_in_flag:
                         stats.log_event(f"IN-FLAG {'ON' if game.ball.in_flag else 'OFF'}")
                         last_in_flag = game.ball.in_flag
 
                     renderer.update(game)
 
-            # Render (passive - just draws current state)
-            if debug:
-                renderer.render(game, total_wins=tuple(total_wins),
-                                stats=stats, input_state=input_handler.state,
-                                frame_count=frame_count)
-            else:
-                renderer.render(game, total_wins=tuple(total_wins))
+            # Render with skip logic for high-speed modes
+            render_interval = input_handler.state.render_interval
+            should_render = (step_count % render_interval == 0) or input_handler.state.paused
 
-            renderer.tick()
+            if should_render:
+                # Update FPS measurement
+                fps_frame_count += 1
+                now = time.time()
+                elapsed = now - fps_last_time
+                if elapsed >= fps_update_interval:
+                    actual_fps = fps_frame_count / elapsed
+                    fps_frame_count = 0
+                    fps_last_time = now
 
-        # Episode end
+                if debug:
+                    renderer.render(game, total_wins=tuple(total_wins),
+                                    stats=stats, input_state=input_handler.state,
+                                    frame_count=frame_count, actual_fps=actual_fps)
+                else:
+                    renderer.render(game, total_wins=tuple(total_wins))
+
+            # Tick with dynamic FPS (0 = no limit)
+            target_fps = input_handler.state.target_fps
+            renderer.tick(target_fps if target_fps > 0 else 0)
+
+        # Episode end (skip if reset was requested)
         if game.is_game_over:
             winner = game.winner
             total_wins[winner] += 1
@@ -182,21 +205,20 @@ def run_visual_game(
                     print(f"  {name}: {info.get('episodes_trained', 0)} episodes trained, "
                           f"recent avg: {info.get('recent_avg_reward', 0):.2f}")
 
-        # Show final state briefly
-        if game.is_game_over and input_handler.running:
-            for _ in range(60):
-                input_handler.process_events()
-                if not input_handler.running:
-                    break
-                if debug:
-                    renderer.render(game, total_wins=tuple(total_wins),
-                                    stats=stats, input_state=input_handler.state,
-                                    frame_count=frame_count)
-                else:
-                    renderer.render(game, total_wins=tuple(total_wins))
-                renderer.tick()
+            # Brief pause to show result (skip in unlimited mode)
+            if input_handler.state.target_fps != 0:
+                for _ in range(60):
+                    input_handler.process_events()
+                    if not input_handler.running or input_handler.consume_reset_request():
+                        break
+                    if debug:
+                        renderer.render(game, total_wins=tuple(total_wins),
+                                        stats=stats, input_state=input_handler.state,
+                                        frame_count=frame_count, actual_fps=actual_fps)
+                    else:
+                        renderer.render(game, total_wins=tuple(total_wins))
+                    renderer.tick(60)
 
-    # Final save
     if save_dir:
         _save_agents(agent_a, agent_b, save_dir, episode_count)
 
