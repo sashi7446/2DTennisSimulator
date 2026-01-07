@@ -8,10 +8,10 @@ Designed to observe emergent tactical behaviors like returning to home position.
 
 import argparse
 import os
-from typing import Optional, Tuple
+from typing import Optional
 
 from config import Config
-from game import Game, GameState
+from game import Game
 from agents import (
     Agent,
     ChaseAgent,
@@ -26,19 +26,7 @@ if NEURAL_AVAILABLE:
 
 
 def create_agent(agent_type: str, player_id: int, config: Config, load_path: Optional[str] = None) -> Agent:
-    """
-    Create or load an agent.
-
-    Args:
-        agent_type: Type of agent (chase, smart, random, neural, or path to saved agent)
-        player_id: 0 for Player A, 1 for Player B
-        config: Game configuration
-        load_path: Path to load agent from (optional)
-
-    Returns:
-        Configured agent instance
-    """
-    # Check if it's a path to a saved agent
+    """Create or load an agent."""
     if load_path and os.path.exists(load_path):
         agent = load_agent(load_path)
         agent.set_player_id(player_id)
@@ -47,7 +35,6 @@ def create_agent(agent_type: str, player_id: int, config: Config, load_path: Opt
         print(f"Loaded agent from {load_path}: {agent.config.name}")
         return agent
 
-    # Create new agent by type
     if agent_type == "chase":
         agent = ChaseAgent()
     elif agent_type == "smart":
@@ -61,7 +48,6 @@ def create_agent(agent_type: str, player_id: int, config: Config, load_path: Opt
         else:
             agent = NeuralAgent()
     else:
-        # Try to load from path
         if os.path.exists(agent_type):
             agent = load_agent(agent_type)
         else:
@@ -82,13 +68,26 @@ def run_visual_game(
     debug: bool = False,
     save_dir: Optional[str] = None,
 ) -> None:
-    """Run a game with pygame visualization and agent control."""
+    """Run a game with pygame visualization and agent control.
+
+    Responsibilities are cleanly separated:
+    - InputHandler: processes events, manages pause/step state
+    - StatsTracker: tracks rewards, wins, events
+    - Renderer: draws game state to screen (passive)
+    - Game: runs simulation logic
+    """
     try:
-        from renderer import Renderer, DebugRenderer
+        from renderer import GameRenderer, DebugRenderer
+        from input_handler import InputHandler
+        from stats_tracker import StatsTracker
     except ImportError as e:
         print(f"Error: {e}")
         print("Install pygame with: pip install pygame")
         return
+
+    # Create components
+    input_handler = InputHandler(debug_mode=debug)
+    stats = StatsTracker() if debug else None
 
     if debug:
         renderer = DebugRenderer(config)
@@ -102,106 +101,99 @@ def run_visual_game(
         print("S - Save agents")
         print("==================\n")
     else:
-        renderer = Renderer(config)
+        renderer = GameRenderer(config)
 
-    # Print agent info
     print(f"\n=== Match ===")
     print(f"Player A: {agent_a.config.name} ({agent_a.config.agent_type})")
     print(f"Player B: {agent_b.config.name} ({agent_b.config.agent_type})")
     print(f"=============\n")
 
-    running = True
     episode_count = 0
-    total_wins = [0, 0]  # Track total wins for [Player A, Player B]
-    save_requested = False
+    total_wins = [0, 0]
+    frame_count = 0
 
-    while running:
-        # Start new game/episode
+    while input_handler.running:
+        # Start new episode
         game = Game(config)
         episode_count += 1
-
-        # Reset agents for new episode
         agent_a.reset()
         agent_b.reset()
 
+        # Track in_flag changes for event log
+        last_in_flag = False
+
         print(f"Episode {episode_count} started (Total wins: A={total_wins[0]}, B={total_wins[1]})")
 
-        while running and not game.is_game_over:
-            # Handle events
-            for event in _get_pygame_events():
-                if event.type == _get_pygame_const('QUIT'):
-                    running = False
-                elif event.type == _get_pygame_const('KEYDOWN'):
-                    if event.key == _get_pygame_const('K_ESCAPE'):
-                        running = False
-                    elif event.key == _get_pygame_const('K_s'):
-                        save_requested = True
+        while input_handler.running and not game.is_game_over:
+            # Input processing (separate from rendering)
+            input_handler.process_events()
 
-            if not running:
-                break
+            # Save if requested
+            if input_handler.consume_save_request() and save_dir:
+                _save_agents(agent_a, agent_b, save_dir, episode_count)
 
-            running = renderer.handle_events()
-
-            # Check if we should step (respects pause in debug mode)
-            should_step = True
-            if debug and hasattr(renderer, 'should_step'):
-                should_step = renderer.should_step()
-
-            if should_step:
-                # Get observation
+            # Game step (controlled by InputHandler, not Renderer)
+            if input_handler.should_step():
                 obs = game.get_observation()
-
-                # Agents choose actions
                 action_a = agent_a.act(obs)
                 action_b = agent_b.act(obs)
-
-                # Step game
                 result = game.step(action_a, action_b)
 
-                # Agents learn from rewards
                 agent_a.learn(result.rewards[0], game.is_game_over)
                 agent_b.learn(result.rewards[1], game.is_game_over)
 
-                # Update debug renderer
-                if debug and hasattr(renderer, 'update'):
-                    renderer.update(game)
-                if debug and hasattr(renderer, 'add_reward'):
-                    renderer.add_reward(result.rewards[0], result.rewards[1])
+                if debug and stats:
+                    stats.add_reward(result.rewards[0], result.rewards[1])
+                    stats.next_frame()
+                    frame_count += 1
 
-            renderer.render(game)
+                    # Log state changes
+                    if game.ball and game.ball.in_flag != last_in_flag:
+                        stats.log_event(f"IN-FLAG {'ON' if game.ball.in_flag else 'OFF'}")
+                        last_in_flag = game.ball.in_flag
+
+                    renderer.update(game)
+
+            # Render (passive - just draws current state)
+            if debug:
+                renderer.render(game, total_wins=tuple(total_wins),
+                                stats=stats, input_state=input_handler.state,
+                                frame_count=frame_count)
+            else:
+                renderer.render(game, total_wins=tuple(total_wins))
+
             renderer.tick()
 
-        # Print episode result and update tracking
+        # Episode end
         if game.is_game_over:
-            winner = "A" if game.winner == 0 else "B"
-            total_wins[game.winner] += 1
+            winner = game.winner
+            total_wins[winner] += 1
 
-            # Update debug renderer with winner
-            if debug and hasattr(renderer, 'end_episode'):
-                renderer.end_episode(winner=game.winner)
+            if debug and stats:
+                stats.end_episode(winner)
 
-            print(f"Episode {episode_count}: Player {winner} wins! "
+            winner_name = "A" if winner == 0 else "B"
+            print(f"Episode {episode_count}: Player {winner_name} wins! "
                   f"Total wins: A={total_wins[0]}, B={total_wins[1]}")
 
-            # Print learning stats if available
             for name, agent in [("A", agent_a), ("B", agent_b)]:
                 info = agent.get_info()
                 if "episodes_trained" in info:
                     print(f"  {name}: {info.get('episodes_trained', 0)} episodes trained, "
                           f"recent avg: {info.get('recent_avg_reward', 0):.2f}")
 
-        # Save if requested
-        if save_requested and save_dir:
-            _save_agents(agent_a, agent_b, save_dir, episode_count)
-            save_requested = False
-
-        # Show final state briefly, then auto-restart
-        if game.is_game_over and running:
-            for _ in range(60):  # 1 second at 60fps
-                if not renderer.handle_events():
-                    running = False
+        # Show final state briefly
+        if game.is_game_over and input_handler.running:
+            for _ in range(60):
+                input_handler.process_events()
+                if not input_handler.running:
                     break
-                renderer.render(game)
+                if debug:
+                    renderer.render(game, total_wins=tuple(total_wins),
+                                    stats=stats, input_state=input_handler.state,
+                                    frame_count=frame_count)
+                else:
+                    renderer.render(game, total_wins=tuple(total_wins))
                 renderer.tick()
 
     # Final save
@@ -209,18 +201,6 @@ def run_visual_game(
         _save_agents(agent_a, agent_b, save_dir, episode_count)
 
     renderer.close()
-
-
-def _get_pygame_events():
-    """Get pygame events (lazy import)."""
-    import pygame
-    return pygame.event.get()
-
-
-def _get_pygame_const(name: str):
-    """Get pygame constant (lazy import)."""
-    import pygame
-    return getattr(pygame, name)
 
 
 def _save_agents(agent_a: Agent, agent_b: Agent, save_dir: str, episode: int) -> None:
@@ -348,12 +328,10 @@ def main():
 
     args = parser.parse_args()
 
-    # List mode
     if args.mode == "list":
         list_agent_types()
         return
 
-    # Create config - only override if CLI argument was provided
     config_kwargs = {}
     if args.speed is not None:
         config_kwargs['ball_speed'] = args.speed
@@ -362,11 +340,9 @@ def main():
 
     config = Config(**config_kwargs)
 
-    # Create agents
     agent_a = create_agent(args.agent_a, player_id=0, config=config)
     agent_b = create_agent(args.agent_b, player_id=1, config=config)
 
-    # Run game
     if args.mode == "headless":
         run_headless_training(
             config, agent_a, agent_b,
