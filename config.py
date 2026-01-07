@@ -30,7 +30,7 @@ class Config:
     # Rewards (sparse reward for 1-point episodes)
     reward_point_win: float = 1.0
     reward_point_lose: float = -1.0
-    reward_rally: float = 0.0
+    reward_rally: float = 0.1
 
     # Game settings
     max_steps_per_point: int = 1000  # Prevent infinite rallies
