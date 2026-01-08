@@ -12,20 +12,20 @@ class Config:
     field_width: int = 800
     field_height: int = 400
 
-    # In-area dimensions (3:4 aspect ratio)
-    area_width: int = 150
+    # In-area dimensions (1:2 aspect ratio)
+    area_width: int = 100
     area_height: int = 200
-    area_gap: int = 150  # Gap between Area A and Area B
+    area_gap: int = 250  # Gap between Area A and Area B
 
     # Ball properties
-    ball_speed: float = 5.0
+    ball_speed: float = 15.0
     ball_radius: int = 5
     serve_angle_range: float = 15.0  # ±15 degrees from horizontal
 
     # Player properties
-    player_speed: float = 3.0
+    player_speed: float = 4.0
     player_radius: int = 15
-    reach_distance: float = 60.0
+    reach_distance: float = 30.0
 
     # Rewards (sparse reward for 1-point episodes)
     reward_point_win: float = 1.0

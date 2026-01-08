@@ -38,6 +38,7 @@ python main.py --mode list
 | `smart` | 位置取りを考慮した改良版チェイスAI |
 | `random` | ランダム行動（ベースライン比較用） |
 | `neural` | Policy Gradientで学習するニューラルネットワークAI |
+| `transformer` | Attention機構を用いた高度なモデル（Transformer） |
 
 ## 使い方
 
@@ -200,6 +201,50 @@ Config(
 ```bash
 python -m unittest discover tests/ -v
 ```
+
+## 新しいエージェントの作成手順 (Cheat Sheet)
+
+新しいAIを追加してシミュレーターで動かすための最短ステップです。
+
+### 1. `agents/new_agent.py` を作成
+`agents/base.py` の `Agent` クラスを継承して実装します。
+
+```python
+from agents.base import Agent
+
+class MyNewAgent(Agent):
+    def act(self, observation):
+        # observation（辞書型）を受け取り、(移動方向, 打球角度)を返す
+        # 移動方向: 0-15 (22.5度刻み), 16 (静止)
+        # 打球角度: 0-360度 (実数値)
+        return 16, 0.0
+
+    def learn(self, reward, done):
+        # 報酬を受け取って学習するロジック（任意）
+        pass
+```
+
+### 2. `agents/__init__.py` に登録
+```python
+from agents.new_agent import MyNewAgent
+# __all__ への追加も忘れずに
+```
+
+### 3. `main.py` の追加
+`create_agent` 関数内に選択肢を追加します。
+
+```python
+# main.py の create_agent 内
+elif agent_type == "my_new":
+    agent = MyNewAgent()
+```
+
+### 4. 実行
+```bash
+python main.py --agent-a my_new --agent-b chase
+```
+
+---
 
 ## ライセンス
 

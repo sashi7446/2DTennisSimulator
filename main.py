@@ -22,7 +22,7 @@ from agents import (
 )
 
 if NEURAL_AVAILABLE:
-    from agents import NeuralAgent
+    from agents import NeuralAgent, TransformerAgent
 
 
 def create_agent(agent_type: str, player_id: int, config: Config, load_path: Optional[str] = None) -> Agent:
@@ -47,6 +47,12 @@ def create_agent(agent_type: str, player_id: int, config: Config, load_path: Opt
             agent = ChaseAgent()
         else:
             agent = NeuralAgent()
+    elif agent_type == "transformer":
+        if not NEURAL_AVAILABLE:
+            print("Warning: TransformerAgent requires numpy. Falling back to ChaseAgent.")
+            agent = ChaseAgent()
+        else:
+            agent = TransformerAgent()
     else:
         if os.path.exists(agent_type):
             agent = load_agent(agent_type)
@@ -131,7 +137,7 @@ def run_visual_game(
         last_actions = None
         last_rewards = None
 
-        print(f"Episode {episode_count} started (Total wins: A={total_wins[0]}, B={total_wins[1]})")
+        # print(f"Episode {episode_count} started")
 
         while input_handler.running and not game.is_game_over:
             input_handler.process_events()
@@ -205,8 +211,8 @@ def run_visual_game(
                 stats.end_episode(winner)
 
             winner_name = "A" if winner == 0 else "B"
-            print(f"Episode {episode_count}: Player {winner_name} wins! "
-                  f"Total wins: A={total_wins[0]}, B={total_wins[1]}")
+            # print(f"Episode {episode_count}: Player {winner_name} wins! "
+            #       f"Total wins: A={total_wins[0]}, B={total_wins[1]}")
 
             for name, agent in [("A", agent_a), ("B", agent_b)]:
                 info = agent.get_info()
@@ -255,8 +261,12 @@ def run_headless_training(
     num_episodes: int = 100,
     save_dir: Optional[str] = None,
     save_interval: int = 10,
-) -> None:
-    """Run training without visualization."""
+) -> tuple:
+    """Run training without visualization.
+
+    Returns:
+        Tuple of (wins, agent_a, agent_b) for use in benchmark mode.
+    """
     print(f"\n=== Headless Training ===")
     print(f"Player A: {agent_a.config.name}")
     print(f"Player B: {agent_b.config.name}")
@@ -292,6 +302,58 @@ def run_headless_training(
     if save_dir:
         _save_agents(agent_a, agent_b, save_dir, num_episodes)
 
+    return wins, agent_a, agent_b
+
+
+def run_benchmark(
+    config: Config,
+    agent_a: Agent,
+    agent_b: Agent,
+    train_episodes: int = 300,
+    save_dir: Optional[str] = None,
+) -> None:
+    """Run benchmark: train headless, then visualize in debug mode.
+
+    This mode:
+    1. Trains agents for train_episodes in headless mode
+    2. Automatically launches debug visualization to observe learned behavior
+    """
+    print(f"\n{'='*50}")
+    print(f"  BENCHMARK MODE")
+    print(f"  Training: {train_episodes} episodes (headless)")
+    print(f"  Then: Debug visualization")
+    print(f"{'='*50}\n")
+
+    # Phase 1: Headless training
+    wins, agent_a, agent_b = run_headless_training(
+        config, agent_a, agent_b,
+        num_episodes=train_episodes,
+        save_dir=save_dir,
+        save_interval=50,
+    )
+
+    # Print training summary
+    print(f"\n{'='*50}")
+    print(f"  TRAINING COMPLETE")
+    print(f"  Results: A={wins[0]} wins ({100*wins[0]/train_episodes:.1f}%)")
+    print(f"           B={wins[1]} wins ({100*wins[1]/train_episodes:.1f}%)")
+    print(f"{'='*50}")
+    print(f"\nLaunching debug visualization...")
+    print(f"Watch how the trained agents play!\n")
+
+    # Disable learning for visualization (optional: observe pure policy)
+    if hasattr(agent_a, 'set_training_mode'):
+        agent_a.set_training_mode(False)
+    if hasattr(agent_b, 'set_training_mode'):
+        agent_b.set_training_mode(False)
+
+    # Phase 2: Debug visualization
+    run_visual_game(
+        config, agent_a, agent_b,
+        debug=True,
+        save_dir=save_dir,
+    )
+
 
 def list_agent_types() -> None:
     """Print available agent types."""
@@ -300,9 +362,11 @@ def list_agent_types() -> None:
     print("  smart   - Improved chase with positioning")
     print("  random  - Random actions (baseline)")
     if NEURAL_AVAILABLE:
-        print("  neural  - Learning neural network agent")
+        print("  neural      - Learning neural network agent")
+        print("  transformer - Advanced Transformer-based agent")
     else:
-        print("  neural  - (requires numpy)")
+        print("  neural      - (requires numpy)")
+        print("  transformer - (requires numpy)")
     print("\nYou can also specify a path to a saved agent directory.")
 
 
@@ -312,9 +376,9 @@ def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["visual", "headless", "list"],
+        choices=["visual", "headless", "benchmark", "list"],
         default="visual",
-        help="Game mode (default: visual)",
+        help="Game mode: visual, headless, benchmark (train then debug), list",
     )
     parser.add_argument(
         "--agent-a",
@@ -379,6 +443,12 @@ def main():
         run_headless_training(
             config, agent_a, agent_b,
             num_episodes=args.episodes,
+            save_dir=args.save_dir,
+        )
+    elif args.mode == "benchmark":
+        run_benchmark(
+            config, agent_a, agent_b,
+            train_episodes=args.episodes,
             save_dir=args.save_dir,
         )
     else:
