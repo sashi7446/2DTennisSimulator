@@ -25,7 +25,7 @@ class Config:
     # Player properties
     player_speed: float = 3.0
     player_radius: int = 15
-    reach_distance: float = 30.0
+    reach_distance: float = 60.0
 
     # Rewards (sparse reward for 1-point episodes)
     reward_point_win: float = 1.0

@@ -87,12 +87,15 @@ class NeuralAgent(Agent):
 
     def _forward(self, features: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
         """Forward pass. Returns (move_probs, angle_params, value)."""
-        hidden = self._relu(features @ self.W1 + self.b1)
+        # 【対称性の確保】ReLU(0以上)からTanh(-1〜1)へ変更
+        hidden = np.tanh(features @ self.W1 + self.b1)
         move_probs = self._softmax(hidden @ self.W_move + self.b_move)
 
         angle_params = (hidden @ self.W_angle + self.b_angle).copy()
-        base_angle = 0.0 if self.player_id == 0 else 180.0
-        angle_params[0] = base_angle + np.tanh(angle_params[0]) * 45.0
+        
+        # 【ガードレール撤去】player_idによる向きの固定（base_angle）を廃止
+        # 【tanhの悪魔を退治】tanhを通さず、-180〜180度の全方位をNNに直接制御させる
+        angle_params[0] = angle_params[0] * 180.0
         angle_params[1] = np.clip(angle_params[1], -1, 1)
 
         value = (hidden @ self.W_value + self.b_value)[0]
@@ -137,15 +140,17 @@ class NeuralAgent(Agent):
         if len(returns) > 1:
             returns = (returns - returns.mean()) / (returns.std() + 1e-8)
 
-        base_angle = 0.0 if self.player_id == 0 else 180.0
-
+        # 【ガードレール撤去】学習時もIDによる補正を行わない
         for features, (move_action, hit_angle), _, G in zip(
             self.states, self.actions, self.log_probs, returns
         ):
-            hidden = self._relu(features @ self.W1 + self.b1)
+            # 【対称性の確保】学習側もTanhへ変更
+            hidden = np.tanh(features @ self.W1 + self.b1)
             move_probs = self._softmax(hidden @ self.W_move + self.b_move)
             angle_params_raw = hidden @ self.W_angle + self.b_angle
-            angle_mean = base_angle + np.tanh(angle_params_raw[0]) * 45.0
+            
+            # 【実験設定】学習ターゲットも360度全方位で計算
+            angle_mean = angle_params_raw[0] * 180.0
             angle_log_std = np.clip(angle_params_raw[1], -1, 1)
             value = (hidden @ self.W_value + self.b_value)[0]
 
@@ -159,10 +164,12 @@ class NeuralAgent(Agent):
 
             # Angle gradient
             angle_std = np.exp(angle_log_std) + 0.1
-            angle_diff = np.clip(hit_angle - angle_mean, -90, 90)
-            tanh_grad = 1.0 - np.tanh(angle_params_raw[0]) ** 2
+            angle_diff = np.clip(hit_angle - angle_mean, -180, 180)
+            
+            # 【tanh退治】tanhを使わないので、勾配の傾きは常に 1.0
+            tanh_grad = 1.0
             angle_grad = np.array([
-                (angle_diff / angle_std**2) * advantage * self.learning_rate * 45.0 * tanh_grad,
+                (angle_diff / angle_std**2) * advantage * self.learning_rate * 180.0 * tanh_grad,
                 ((angle_diff / angle_std)**2 - 1) * advantage * self.learning_rate
             ])
             angle_grad = np.clip(angle_grad, -1, 1)
