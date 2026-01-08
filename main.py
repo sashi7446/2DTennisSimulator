@@ -127,6 +127,9 @@ def run_visual_game(
         agent_b.reset()
         step_count = 0
         last_in_flag = False
+        last_obs = None
+        last_actions = None
+        last_rewards = None
 
         print(f"Episode {episode_count} started (Total wins: A={total_wins[0]}, B={total_wins[1]})")
 
@@ -142,14 +145,19 @@ def run_visual_game(
 
             # Game step
             if input_handler.should_step():
-                obs = game.get_observation()
-                action_a = agent_a.act(obs)
-                action_b = agent_b.act(obs)
-                result = game.step(action_a, action_b)
+                current_obs = game.get_observation()
+                current_action_a = agent_a.act(current_obs)
+                current_action_b = agent_b.act(current_obs)
+                result = game.step(current_action_a, current_action_b)
 
                 agent_a.learn(result.rewards[0], game.is_game_over)
                 agent_b.learn(result.rewards[1], game.is_game_over)
                 step_count += 1
+
+                # Store for debug rendering
+                last_obs = current_obs
+                last_actions = (current_action_a, current_action_b)
+                last_rewards = result.rewards
 
                 if debug and stats:
                     stats.add_reward(result.rewards[0], result.rewards[1])
@@ -179,7 +187,8 @@ def run_visual_game(
                 if debug:
                     renderer.render(game, total_wins=tuple(total_wins),
                                     stats=stats, input_state=input_handler.state,
-                                    frame_count=frame_count, actual_fps=actual_fps)
+                                    frame_count=frame_count, actual_fps=actual_fps,
+                                    obs=last_obs, actions=last_actions, rewards=last_rewards)
                 else:
                     renderer.render(game, total_wins=tuple(total_wins))
 
@@ -214,7 +223,8 @@ def run_visual_game(
                     if debug:
                         renderer.render(game, total_wins=tuple(total_wins),
                                         stats=stats, input_state=input_handler.state,
-                                        frame_count=frame_count, actual_fps=actual_fps)
+                                        frame_count=frame_count, actual_fps=actual_fps,
+                                        obs=last_obs, actions=last_actions, rewards=last_rewards)
                     else:
                         renderer.render(game, total_wins=tuple(total_wins))
                     renderer.tick(60)

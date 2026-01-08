@@ -11,12 +11,6 @@ from ball import Ball, create_serve_ball
 from player import Player, create_players, NUM_MOVEMENT_ACTIONS
 
 
-def clamp_hit_angle(angle: float, player_id: int) -> float:
-    """Map hit angle (0-360°) to ±45° range from player's facing direction."""
-    offset = 45.0 * math.cos(math.radians(angle / 2.0))
-    return offset if player_id == 0 else 180.0 + offset
-
-
 class GameState(Enum):
     SERVING = "serving"
     PLAYING = "playing"
@@ -100,11 +94,11 @@ class Game:
         if self.ball:
             # Try hits
             if self.player_a.can_hit(self.ball):
-                self.player_a.hit_ball(self.ball, clamp_hit_angle(hit_angle_a, 0), self.config.ball_speed)
+                self.player_a.hit_ball(self.ball, hit_angle_a, self.config.ball_speed)
                 hit_a, self.rally_count = True, self.rally_count + 1
                 rewards[0] += self.config.reward_rally
             elif self.player_b.can_hit(self.ball):
-                self.player_b.hit_ball(self.ball, clamp_hit_angle(hit_angle_b, 1), self.config.ball_speed)
+                self.player_b.hit_ball(self.ball, hit_angle_b, self.config.ball_speed)
                 hit_b, self.rally_count = True, self.rally_count + 1
                 rewards[1] += self.config.reward_rally
 
