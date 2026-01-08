@@ -11,9 +11,11 @@ from agents.random_agent import RandomAgent
 # NeuralAgent requires numpy
 try:
     from agents.neural import NeuralAgent
+    from agents.transformer import TransformerAgent
     NEURAL_AVAILABLE = True
 except ImportError:
     NeuralAgent = None
+    TransformerAgent = None
     NEURAL_AVAILABLE = False
 
 __all__ = [
@@ -24,5 +26,6 @@ __all__ = [
     "SmartChaseAgent",
     "RandomAgent",
     "NeuralAgent",
+    "TransformerAgent",
     "NEURAL_AVAILABLE",
 ]

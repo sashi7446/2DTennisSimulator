@@ -87,7 +87,9 @@ def get_agent_class(agent_type: str) -> type:
     classes = {"chase": ChaseAgent, "smart_chase": SmartChaseAgent, "random": RandomAgent}
     try:
         from agents.neural import NeuralAgent
+        from agents.transformer import TransformerAgent
         classes["neural"] = NeuralAgent
+        classes["transformer"] = TransformerAgent
     except ImportError:
         pass
     if agent_type not in classes:
