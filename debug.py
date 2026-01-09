@@ -17,8 +17,8 @@ class EventType(Enum):
     # Ball events
     BALL_CREATED = "ball_created"
     BALL_POSITION_UPDATE = "ball_position_update"
-    BALL_IN_FLAG_ON = "ball_in_flag_on"
-    BALL_IN_FLAG_OFF = "ball_in_flag_off"
+    BALL_IS_IN_ON = "ball_is_in_on"
+    BALL_IS_IN_OFF = "ball_is_in_off"
     BALL_WALL_COLLISION = "ball_wall_collision"
 
     # Player events
@@ -180,7 +180,7 @@ class DebugLogger:
     def find_state_transitions(self, event_type: EventType) -> List[Dict]:
         """
         Find all state transitions for a specific event type.
-        Useful for tracking in_flag changes, etc.
+        Useful for tracking is_in changes, etc.
         """
         events = self.get_events_by_type(event_type)
         return [
@@ -206,7 +206,7 @@ class GameValidator:
     def __init__(self, logger: DebugLogger, config):
         self.logger = logger
         self.config = config
-        self.last_in_flag = False
+        self.last_is_in = False
         self.last_hit_by = None
 
     def validate_ball_position(self, ball) -> bool:
@@ -255,22 +255,22 @@ class GameValidator:
 
         return is_valid
 
-    def validate_in_flag_transition(self, ball, was_in_area: bool):
-        """Validate in_flag state transitions."""
-        # in_flag should only turn ON when entering an in-area
-        if not self.last_in_flag and ball.in_flag and not was_in_area:
+    def validate_is_in_transition(self, ball, was_in_area: bool):
+        """Validate is_in state transitions."""
+        # is_in should only turn ON when entering an in-area
+        if not self.last_is_in and ball.is_in and not was_in_area:
             self.logger.log(
                 EventType.VALIDATION_WARNING,
                 {
                     "x": ball.x,
                     "y": ball.y,
-                    "in_flag": ball.in_flag,
+                    "is_in": ball.is_in,
                     "was_in_area": was_in_area,
                 },
-                "in_flag turned ON without entering in-area",
+                "is_in turned ON without entering in-area",
             )
 
-        self.last_in_flag = ball.in_flag
+        self.last_is_in = ball.is_in
 
     def validate_hit(self, player, ball, success: bool):
         """Validate hit attempt logic."""
@@ -293,15 +293,15 @@ class GameValidator:
             reasons = []
             if distance > player.reach_distance:
                 reasons.append(f"too far ({distance:.1f} > {player.reach_distance})")
-            if not ball.in_flag:
-                reasons.append("in_flag is OFF")
+            if not ball.is_in:
+                reasons.append("is_in is OFF")
 
             self.logger.log(
                 EventType.PLAYER_HIT_FAIL,
                 {
                     "player_id": player.player_id,
                     "distance": distance,
-                    "in_flag": ball.in_flag,
+                    "is_in": ball.is_in,
                 },
                 f"Hit failed: {', '.join(reasons)}",
             )

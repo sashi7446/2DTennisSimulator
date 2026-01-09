@@ -39,7 +39,7 @@ class Player:
         )
 
     def can_hit(self, ball: Ball) -> bool:
-        return ball.in_flag and ball.distance_to(self.x, self.y) <= self.reach_distance
+        return ball.is_in and ball.distance_to(self.x, self.y) <= self.reach_distance
 
     def hit_ball(self, ball: Ball, angle_degrees: float, speed: float) -> bool:
         if not self.can_hit(ball):

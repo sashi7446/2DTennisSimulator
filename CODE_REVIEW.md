@@ -14,29 +14,13 @@
 
 ## 気になる点
 
-### 1. Config.to_dict() が手動列挙
+### 1. ~~Config.to_dict() が手動列挙~~ **修正済み**
 
-```python
-# config.py:43-62
-def to_dict(self) -> Dict[str, Any]:
-    return {
-        "field_width": self.field_width,
-        "field_height": self.field_height,
-        # ... 全部手で書いてる
-    }
-```
+`asdict(self)` に置換済み。
 
-`dataclasses.asdict(self)` で一発。フィールド追加するたびに `to_dict()` の更新を忘れるパターン。
+### 2. ~~player.py の can_hit() のロジック~~ **修正済み**
 
-### 2. player.py の can_hit() のロジック
-
-```python
-# player.py:41-42
-def can_hit(self, ball: Ball) -> bool:
-    return ball.in_flag and ball.distance_to(self.x, self.y) <= self.reach_distance
-```
-
-`ball.in_flag` が True のときだけ打てる仕様、直感に反する。ボールがインエリアを通過した後でないと打てないのは分かるけど、変数名が `in_flag` だと「インエリア内にいる」と誤解しやすい。`passed_through_in_area` とかの方が意図が伝わる。
+`in_flag` → `is_in` にリネーム。テニス用語の「イン/アウト」に合わせた命名。
 
 ### 3. game.py の step() が複雑
 
@@ -74,11 +58,11 @@ self.observation_space = spaces.Dict({
 
 ---
 
-## 設計上の懸念
+## ~~設計上の懸念~~ **修正済み**
 
-### `ball.in_flag` の命名
+### ~~`ball.in_flag` の命名~~
 
-何度も書くけど、この名前は紛らわしい。「ボールがまだインエリアを通過していない」状態なのか「既に通過した」状態なのか、名前から分からない。
+`is_in` にリネーム済み。
 
 ---
 
@@ -102,8 +86,8 @@ self.observation_space = spaces.Dict({
 
 | 優先度 | 項目 | 理由 |
 |--------|------|------|
-| 高 | `in_flag` のリネーム | 可読性向上、誤解防止 |
-| 中 | `Config.to_dict()` を `asdict()` に | メンテ漏れ防止 |
+| ~~高~~ | ~~`in_flag` のリネーム~~ | **修正済み** → `is_in` |
+| ~~中~~ | ~~`Config.to_dict()` を `asdict()` に~~ | **修正済み** |
 | 中 | `game.step()` の分割 | テスタビリティ向上 |
 | 低 | グローバルロガー廃止 | テスト容易性 |
 
@@ -113,4 +97,4 @@ self.observation_space = spaces.Dict({
 
 「動くプロトタイプ」としては十分。コアエンジン（game, ball, player, field）の設計は堅実。エージェントが独立したブラックボックスとして競い合う構造も面白い。
 
-長期的にメンテするなら `in_flag` の命名だけは早めに直した方がいい。後から変えるとテストも全部書き直しになる。
+~~長期的にメンテするなら `in_flag` の命名だけは早めに直した方がいい。後から変えるとテストも全部書き直しになる。~~ **対応完了**。

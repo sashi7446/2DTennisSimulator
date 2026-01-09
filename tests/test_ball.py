@@ -19,9 +19,9 @@ class TestBall(unittest.TestCase):
         self.field = Field(self.config)
 
     def test_initial_state(self):
-        """Ball should start with in_flag OFF."""
+        """Ball should start with is_in OFF."""
         ball = Ball(x=100, y=100)
-        self.assertFalse(ball.in_flag)
+        self.assertFalse(ball.is_in)
         self.assertIsNone(ball.last_hit_by)
         self.assertEqual(ball.vx, 0)
         self.assertEqual(ball.vy, 0)
@@ -79,60 +79,60 @@ class TestBall(unittest.TestCase):
         self.assertEqual(ball.x, 105.0)
         self.assertEqual(ball.y, 97.0)
 
-    def test_update_in_flag_turns_on(self):
+    def test_update_is_in_turns_on(self):
         """In-flag should turn ON when entering OPPONENT'S in-area."""
         # Player B (id=1) hit the ball, so it must pass through Area A
         center_a = self.field.area_a.center
         ball = Ball(x=center_a[0] - 10, y=center_a[1], vx=15.0, vy=0.0)
         ball.last_hit_by = 1  # Player B hit it
-        self.assertFalse(ball.in_flag)
+        self.assertFalse(ball.is_in)
 
         # Move into Area A (opponent's area for Player B)
         ball.update(self.field)
-        self.assertTrue(ball.in_flag)
+        self.assertTrue(ball.is_in)
 
-    def test_update_in_flag_requires_opponent_area(self):
+    def test_update_is_in_requires_opponent_area(self):
         """In-flag should NOT turn ON when entering own in-area."""
         # Player A (id=0) hit the ball, so it must pass through Area B (not A)
         center_a = self.field.area_a.center
         ball = Ball(x=center_a[0] - 10, y=center_a[1], vx=15.0, vy=0.0)
         ball.last_hit_by = 0  # Player A hit it
-        self.assertFalse(ball.in_flag)
+        self.assertFalse(ball.is_in)
 
         # Move into Area A (own area for Player A - should NOT turn on)
         ball.update(self.field)
-        self.assertFalse(ball.in_flag)  # Should stay OFF
+        self.assertFalse(ball.is_in)  # Should stay OFF
 
-    def test_update_in_flag_player_a_to_area_b(self):
-        """Player A's shots must pass through Area B to turn in_flag ON."""
+    def test_update_is_in_player_a_to_area_b(self):
+        """Player A's shots must pass through Area B to turn is_in ON."""
         # Position ball just before Area B
         center_b = self.field.area_b.center
         ball = Ball(x=center_b[0] - 10, y=center_b[1], vx=15.0, vy=0.0)
         ball.last_hit_by = 0  # Player A hit it
-        self.assertFalse(ball.in_flag)
+        self.assertFalse(ball.is_in)
 
         # Move into Area B (opponent's area for Player A)
         ball.update(self.field)
-        self.assertTrue(ball.in_flag)
+        self.assertTrue(ball.is_in)
 
-    def test_update_in_flag_stays_on(self):
+    def test_update_is_in_stays_on(self):
         """In-flag should stay ON after leaving in-area."""
         center_a = self.field.area_a.center
         ball = Ball(x=center_a[0], y=center_a[1], vx=50.0, vy=0.0)
-        ball.in_flag = True
+        ball.is_in = True
 
         # Move out of area
         ball.update(self.field)
-        self.assertTrue(ball.in_flag)  # Should stay ON
+        self.assertTrue(ball.is_in)  # Should stay ON
 
-    def test_hit_resets_in_flag(self):
-        """Hitting ball should reset in_flag to OFF."""
+    def test_hit_resets_is_in(self):
+        """Hitting ball should reset is_in to OFF."""
         ball = Ball(x=100, y=100)
-        ball.in_flag = True
+        ball.is_in = True
 
         ball.hit(player_id=0, angle_degrees=45, speed=5.0)
 
-        self.assertFalse(ball.in_flag)
+        self.assertFalse(ball.is_in)
         self.assertEqual(ball.last_hit_by, 0)
 
     def test_hit_sets_velocity(self):
@@ -153,7 +153,7 @@ class TestBall(unittest.TestCase):
     def test_reset(self):
         """Reset should clear all state."""
         ball = Ball(x=100, y=100, vx=5.0, vy=5.0)
-        ball.in_flag = True
+        ball.is_in = True
         ball.last_hit_by = 1
 
         ball.reset(200, 150)
@@ -162,7 +162,7 @@ class TestBall(unittest.TestCase):
         self.assertEqual(ball.y, 150)
         self.assertEqual(ball.vx, 0.0)
         self.assertEqual(ball.vy, 0.0)
-        self.assertFalse(ball.in_flag)
+        self.assertFalse(ball.is_in)
         self.assertIsNone(ball.last_hit_by)
 
     def test_wall_collision_detected(self):
@@ -193,10 +193,10 @@ class TestCreateServeBall(unittest.TestCase):
         self.assertEqual(ball.x, center[0])
         self.assertEqual(ball.y, center[1])
 
-    def test_serve_in_flag_off(self):
-        """Serve ball should have in_flag OFF."""
+    def test_serve_is_in_off(self):
+        """Serve ball should have is_in OFF."""
         ball = create_serve_ball(self.field, self.config)
-        self.assertFalse(ball.in_flag)
+        self.assertFalse(ball.is_in)
 
     def test_serve_has_correct_speed(self):
         """Serve ball should have configured speed."""
@@ -232,7 +232,7 @@ class TestCreateServeBall(unittest.TestCase):
 
             for _ in range(1000):  # Max steps
                 wall = ball.update(self.field)
-                if ball.in_flag:
+                if ball.is_in:
                     passed_in_area = True
                 if wall:
                     break

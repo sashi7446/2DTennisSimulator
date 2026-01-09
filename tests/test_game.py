@@ -25,7 +25,7 @@ class TestGameInitialization(unittest.TestCase):
         center = game.field.center
         self.assertEqual(game.ball.x, center[0])
         self.assertEqual(game.ball.y, center[1])
-        self.assertFalse(game.ball.in_flag)
+        self.assertFalse(game.ball.is_in)
         self.assertNotEqual(game.ball.vx, 0)  # Should have velocity
 
     def test_initial_player_positions(self):
@@ -92,12 +92,12 @@ class TestGameHitting(unittest.TestCase):
     def setUp(self):
         self.game = Game()
 
-    def test_hit_when_in_range_and_in_flag(self):
-        """Player should hit when in range and in_flag is ON."""
-        # Position ball near player A with in_flag ON
+    def test_hit_when_in_range_and_is_in(self):
+        """Player should hit when in range and is_in is ON."""
+        # Position ball near player A with is_in ON
         self.game.ball.x = self.game.player_a.x + 10
         self.game.ball.y = self.game.player_a.y
-        self.game.ball.in_flag = True
+        self.game.ball.is_in = True
         self.game.ball.vx = 0
         self.game.ball.vy = 0
 
@@ -106,12 +106,12 @@ class TestGameHitting(unittest.TestCase):
         self.assertTrue(result.hit_occurred[0])  # Player A hit
         self.assertFalse(result.hit_occurred[1])  # Player B didn't hit
 
-    def test_no_hit_when_in_flag_off(self):
-        """Player should NOT hit when in_flag is OFF."""
-        # Position ball near player A but in_flag OFF
+    def test_no_hit_when_is_in_off(self):
+        """Player should NOT hit when is_in is OFF."""
+        # Position ball near player A but is_in OFF
         self.game.ball.x = self.game.player_a.x + 10
         self.game.ball.y = self.game.player_a.y
-        self.game.ball.in_flag = False
+        self.game.ball.is_in = False
         self.game.ball.vx = 0
         self.game.ball.vy = 0
 
@@ -125,7 +125,7 @@ class TestGameHitting(unittest.TestCase):
         # Position ball far from both players
         self.game.ball.x = self.game.config.field_width / 2
         self.game.ball.y = self.game.config.field_height / 2
-        self.game.ball.in_flag = True
+        self.game.ball.is_in = True
         self.game.ball.vx = 0
         self.game.ball.vy = 0
 
@@ -134,21 +134,21 @@ class TestGameHitting(unittest.TestCase):
         self.assertFalse(result.hit_occurred[0])
         self.assertFalse(result.hit_occurred[1])
 
-    def test_hit_resets_in_flag(self):
-        """Hitting ball should reset in_flag to OFF."""
+    def test_hit_resets_is_in(self):
+        """Hitting ball should reset is_in to OFF."""
         self.game.ball.x = self.game.player_a.x + 10
         self.game.ball.y = self.game.player_a.y
-        self.game.ball.in_flag = True
+        self.game.ball.is_in = True
 
         self.game.step((16, 45), (16, 0))
 
-        self.assertFalse(self.game.ball.in_flag)
+        self.assertFalse(self.game.ball.is_in)
 
     def test_hit_gives_rally_reward(self):
         """Hitting should give rally reward (configured value)."""
         self.game.ball.x = self.game.player_a.x + 10
         self.game.ball.y = self.game.player_a.y
-        self.game.ball.in_flag = True
+        self.game.ball.is_in = True
 
         result = self.game.step((16, 45), (16, 0))
 
@@ -160,7 +160,7 @@ class TestGameHitting(unittest.TestCase):
         old_rally = self.game.rally_count
         self.game.ball.x = self.game.player_a.x + 10
         self.game.ball.y = self.game.player_a.y
-        self.game.ball.in_flag = True
+        self.game.ball.is_in = True
 
         self.game.step((16, 45), (16, 0))
 
@@ -174,14 +174,14 @@ class TestGamePointScoring(unittest.TestCase):
         self.config = Config()
         self.game = Game(self.config)
 
-    def test_point_win_with_in_flag_on(self):
-        """Player should win point when ball hits wall with in_flag ON."""
-        # Position ball near wall, going toward it, with in_flag ON
+    def test_point_win_with_is_in_on(self):
+        """Player should win point when ball hits wall with is_in ON."""
+        # Position ball near wall, going toward it, with is_in ON
         self.game.ball.x = self.config.field_width - 10
         self.game.ball.y = self.config.field_height / 2
         self.game.ball.vx = 20  # Fast toward right wall
         self.game.ball.vy = 0
-        self.game.ball.in_flag = True
+        self.game.ball.is_in = True
         self.game.ball.last_hit_by = 0  # Player A hit it
 
         old_score_a = self.game.scores[0]
@@ -192,14 +192,14 @@ class TestGamePointScoring(unittest.TestCase):
         self.assertEqual(result.point_result.reason, "in")
         self.assertEqual(self.game.scores[0], old_score_a + 1)
 
-    def test_point_loss_with_in_flag_off(self):
-        """Player should lose point when ball hits wall with in_flag OFF."""
-        # Position ball near wall, going toward it, with in_flag OFF (out shot)
+    def test_point_loss_with_is_in_off(self):
+        """Player should lose point when ball hits wall with is_in OFF."""
+        # Position ball near wall, going toward it, with is_in OFF (out shot)
         self.game.ball.x = self.config.field_width - 10
         self.game.ball.y = self.config.field_height / 2
         self.game.ball.vx = 20
         self.game.ball.vy = 0
-        self.game.ball.in_flag = False
+        self.game.ball.is_in = False
         self.game.ball.last_hit_by = 0  # Player A hit it (but it was out)
 
         old_score_b = self.game.scores[1]
@@ -216,7 +216,7 @@ class TestGamePointScoring(unittest.TestCase):
         self.game.ball.y = self.config.field_height / 2
         self.game.ball.vx = 20
         self.game.ball.vy = 0
-        self.game.ball.in_flag = True
+        self.game.ball.is_in = True
         self.game.ball.last_hit_by = 0
 
         result = self.game.step((16, 0), (16, 0))
@@ -230,7 +230,7 @@ class TestGamePointScoring(unittest.TestCase):
         self.game.ball.y = self.config.field_height / 2
         self.game.ball.vx = 20
         self.game.ball.vy = 0
-        self.game.ball.in_flag = False  # Out
+        self.game.ball.is_in = False  # Out
         self.game.ball.last_hit_by = 0
 
         result = self.game.step((16, 0), (16, 0))
@@ -252,7 +252,7 @@ class TestGameOver(unittest.TestCase):
         self.game.ball.x = self.config.field_width - 5
         self.game.ball.vx = 10
         self.game.ball.vy = 0
-        self.game.ball.in_flag = True
+        self.game.ball.is_in = True
         self.game.ball.last_hit_by = 0
 
         result = self.game.step((16, 0), (16, 0))
@@ -311,7 +311,7 @@ class TestGameObservation(unittest.TestCase):
         obs = game.get_observation()
 
         required_keys = [
-            "ball_x", "ball_y", "ball_vx", "ball_vy", "ball_in_flag",
+            "ball_x", "ball_y", "ball_vx", "ball_vy", "ball_is_in",
             "player_a_x", "player_a_y", "player_b_x", "player_b_y",
             "score_a", "score_b", "rally_count",
             "field_width", "field_height",
@@ -328,7 +328,7 @@ class TestGameObservation(unittest.TestCase):
         self.assertEqual(obs["ball_y"], game.ball.y)
         self.assertEqual(obs["player_a_x"], game.player_a.x)
         self.assertEqual(obs["score_a"], game.scores[0])
-        self.assertEqual(obs["ball_in_flag"], game.ball.in_flag)
+        self.assertEqual(obs["ball_is_in"], game.ball.is_in)
 
 
 class TestServeLogic(unittest.TestCase):
@@ -343,7 +343,7 @@ class TestServeLogic(unittest.TestCase):
         game.step((16, 0), (16, 0))
 
         self.assertEqual(game.state, GameState.PLAYING)
-        self.assertFalse(game.ball.in_flag)
+        self.assertFalse(game.ball.is_in)
 
     def test_players_reset_on_new_point(self):
         """Players should return to start positions on new point."""

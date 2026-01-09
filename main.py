@@ -132,7 +132,7 @@ def run_visual_game(
         agent_a.reset()
         agent_b.reset()
         step_count = 0
-        last_in_flag = False
+        last_is_in = False
         last_obs = None
         last_actions = None
         last_rewards = None
@@ -170,9 +170,9 @@ def run_visual_game(
                     stats.next_frame()
                     frame_count += 1
 
-                    if game.ball and game.ball.in_flag != last_in_flag:
-                        stats.log_event(f"IN-FLAG {'ON' if game.ball.in_flag else 'OFF'}")
-                        last_in_flag = game.ball.in_flag
+                    if game.ball and game.ball.is_in != last_is_in:
+                        stats.log_event(f"is_in {'ON' if game.ball.is_in else 'OFF'}")
+                        last_is_in = game.ball.is_in
 
                     renderer.update(game)
 

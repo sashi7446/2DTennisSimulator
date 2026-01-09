@@ -1,6 +1,6 @@
 """Configuration for 2D Tennis Simulator."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Dict, Any
 
 
@@ -42,24 +42,7 @@ class Config:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary."""
-        return {
-            "field_width": self.field_width,
-            "field_height": self.field_height,
-            "area_width": self.area_width,
-            "area_height": self.area_height,
-            "area_gap": self.area_gap,
-            "ball_speed": self.ball_speed,
-            "ball_radius": self.ball_radius,
-            "serve_angle_range": self.serve_angle_range,
-            "player_speed": self.player_speed,
-            "player_radius": self.player_radius,
-            "reach_distance": self.reach_distance,
-            "reward_point_win": self.reward_point_win,
-            "reward_point_lose": self.reward_point_lose,
-            "reward_rally": self.reward_rally,
-            "max_steps_per_point": self.max_steps_per_point,
-            "fps": self.fps,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Config":
