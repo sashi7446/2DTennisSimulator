@@ -102,7 +102,12 @@ class Game:
                 hit_b, self.rally_count = True, self.rally_count + 1
                 rewards[1] += self.config.reward_rally
 
+            was_in = self.ball.is_in
             wall = self.ball.update(self.field)
+
+            # Reward when ball passes through in-area (is_in turns ON)
+            if not was_in and self.ball.is_in and self.ball.last_hit_by is not None:
+                rewards[self.ball.last_hit_by] += self.config.reward_in_area
 
             if wall:
                 if self.ball.is_in:
