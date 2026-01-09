@@ -121,51 +121,51 @@ class TestPlayer(unittest.TestCase):
         self.player.move(0, self.field)  # Move right
         self.assertLessEqual(self.player.x, self.config.field_width - self.player.radius)
 
-    def test_can_hit_requires_in_flag(self):
-        """can_hit should return False if in_flag is OFF."""
+    def test_can_hit_requires_is_in(self):
+        """can_hit should return False if is_in is OFF."""
         ball = Ball(x=100, y=100)  # Same position as player
-        ball.in_flag = False
+        ball.is_in = False
         self.assertFalse(self.player.can_hit(ball))
 
     def test_can_hit_requires_distance(self):
         """can_hit should return False if ball is too far."""
         ball = Ball(x=200, y=200)  # Far from player
-        ball.in_flag = True
+        ball.is_in = True
         self.assertFalse(self.player.can_hit(ball))
 
     def test_can_hit_success(self):
         """can_hit should return True when conditions met."""
         ball = Ball(x=100 + self.config.reach_distance - 1, y=100)
-        ball.in_flag = True
+        ball.is_in = True
         self.assertTrue(self.player.can_hit(ball))
 
     def test_can_hit_at_exact_reach(self):
         """can_hit should return True at exactly reach distance."""
         ball = Ball(x=100 + self.config.reach_distance, y=100)
-        ball.in_flag = True
+        ball.is_in = True
         self.assertTrue(self.player.can_hit(ball))
 
     def test_can_hit_just_beyond_reach(self):
         """can_hit should return False just beyond reach distance."""
         ball = Ball(x=100 + self.config.reach_distance + 0.1, y=100)
-        ball.in_flag = True
+        ball.is_in = True
         self.assertFalse(self.player.can_hit(ball))
 
     def test_hit_ball_success(self):
         """hit_ball should succeed and modify ball state."""
         ball = Ball(x=110, y=100)
-        ball.in_flag = True
+        ball.is_in = True
 
         result = self.player.hit_ball(ball, 45.0, 5.0)
 
         self.assertTrue(result)
-        self.assertFalse(ball.in_flag)  # Should be reset
+        self.assertFalse(ball.is_in)  # Should be reset
         self.assertEqual(ball.last_hit_by, 0)
 
-    def test_hit_ball_failure_no_in_flag(self):
-        """hit_ball should fail if in_flag is OFF."""
+    def test_hit_ball_failure_no_is_in(self):
+        """hit_ball should fail if is_in is OFF."""
         ball = Ball(x=110, y=100)
-        ball.in_flag = False
+        ball.is_in = False
 
         result = self.player.hit_ball(ball, 45.0, 5.0)
 
@@ -175,7 +175,7 @@ class TestPlayer(unittest.TestCase):
     def test_hit_ball_failure_too_far(self):
         """hit_ball should fail if ball is too far."""
         ball = Ball(x=500, y=500)
-        ball.in_flag = True
+        ball.is_in = True
 
         result = self.player.hit_ball(ball, 45.0, 5.0)
 

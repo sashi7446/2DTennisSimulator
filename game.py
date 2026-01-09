@@ -102,10 +102,15 @@ class Game:
                 hit_b, self.rally_count = True, self.rally_count + 1
                 rewards[1] += self.config.reward_rally
 
+            was_in = self.ball.is_in
             wall = self.ball.update(self.field)
 
+            # Reward when ball passes through in-area (is_in turns ON)
+            if not was_in and self.ball.is_in and self.ball.last_hit_by is not None:
+                rewards[self.ball.last_hit_by] += self.config.reward_in_area
+
             if wall:
-                if self.ball.in_flag:
+                if self.ball.is_in:
                     # Valid shot - hitter or serve winner
                     if self.ball.last_hit_by is not None:
                         point_result = self._award_point(self.ball.last_hit_by, "in", rewards)
@@ -129,7 +134,7 @@ class Game:
         bvx, bvy = self.ball.velocity if self.ball else (0, 0)
         return {
             "ball_x": bx, "ball_y": by, "ball_vx": bvx, "ball_vy": bvy,
-            "ball_in_flag": self.ball.in_flag if self.ball else False,
+            "ball_is_in": self.ball.is_in if self.ball else False,
             "player_a_x": self.player_a.x, "player_a_y": self.player_a.y,
             "player_b_x": self.player_b.x, "player_b_y": self.player_b.y,
             "score_a": self.scores[0], "score_b": self.scores[1],

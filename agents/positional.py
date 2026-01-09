@@ -177,7 +177,7 @@ class PositionalAgent(Agent):
         ball_y = observation["ball_y"]
         ball_vx = observation["ball_vx"]
         ball_vy = observation["ball_vy"]
-        ball_in_flag = observation.get("ball_in_flag", True)
+        ball_is_in = observation.get("ball_is_in", True)
 
         # Calculate optimal defensive position
         target_x, target_y = self._calculate_defensive_position(
@@ -185,7 +185,7 @@ class PositionalAgent(Agent):
         )
 
         # If ball needs interception, adjust target to ball's predicted position
-        if ball_in_flag and self._should_intercept_ball(
+        if ball_is_in and self._should_intercept_ball(
             my_x, my_y, ball_x, ball_y, ball_vx, ball_vy
         ):
             pred_time = self.config.parameters.get("prediction_time", 15)

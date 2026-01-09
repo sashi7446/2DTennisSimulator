@@ -11,9 +11,9 @@ from field import Field
 @dataclass
 class Ball:
     """
-    The tennis ball with position, velocity, and in-flag state.
+    The tennis ball with position, velocity, and is_in state.
 
-    The in-flag tracks whether the ball has passed through an in-area
+    is_in tracks whether the ball has passed through an in-area
     since the last hit. This determines whether a shot is valid (in)
     or invalid (out).
     """
@@ -22,7 +22,7 @@ class Ball:
     y: float
     vx: float = 0.0
     vy: float = 0.0
-    in_flag: bool = False
+    is_in: bool = False
     last_hit_by: Optional[int] = None  # 0 for player A, 1 for player B, None for serve
     radius: float = 5.0
 
@@ -30,7 +30,7 @@ class Ball:
         """
         Update ball position and check for in-area/wall collisions.
 
-        The ball's in_flag only turns ON when passing through the OPPONENT's
+        The ball's is_in only turns ON when passing through the OPPONENT's
         in-area (the area on the opposite side from the player who hit it).
         - If Player A (id=0) hit the ball, it must pass through Area B (right side)
         - If Player B (id=1) hit the ball, it must pass through Area A (left side)
@@ -45,19 +45,19 @@ class Ball:
         self.x += self.vx
         self.y += self.vy
 
-        # Check if ball enters the correct in-area (sets in_flag to True)
-        if not self.in_flag:
+        # Check if ball enters the correct in-area (sets is_in to True)
+        if not self.is_in:
             if self.last_hit_by is None:
                 # Serve: can pass through either area
                 if field.is_in_area(self.x, self.y):
-                    self.in_flag = True
+                    self.is_in = True
             else:
                 # Player hit: must pass through OPPONENT's area
                 # Player A (id=0) must hit through Area B, Player B (id=1) must hit through Area A
                 if self.last_hit_by == 0 and field.is_in_area_b(self.x, self.y):
-                    self.in_flag = True
+                    self.is_in = True
                 elif self.last_hit_by == 1 and field.is_in_area_a(self.x, self.y):
-                    self.in_flag = True
+                    self.is_in = True
 
         # Check for wall collision
         wall = field.check_wall_collision(self.x, self.y, self.radius)
@@ -93,7 +93,7 @@ class Ball:
             speed: Speed of the hit
         """
         self.set_velocity_from_angle(angle_degrees, speed)
-        self.in_flag = False  # Reset in-flag on hit
+        self.is_in = False  # Reset on hit
         self.last_hit_by = player_id
 
     def distance_to(self, x: float, y: float) -> float:
@@ -116,7 +116,7 @@ class Ball:
         self.y = y
         self.vx = 0.0
         self.vy = 0.0
-        self.in_flag = False
+        self.is_in = False
         self.last_hit_by = None
 
 

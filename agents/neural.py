@@ -73,7 +73,7 @@ class NeuralAgent(Agent):
             o["ball_vx"] / 10.0, o["ball_vy"] / 10.0,
             my_x / self.field_width - 0.5, my_y / self.field_height - 0.5,
             opp_x / self.field_width - 0.5, opp_y / self.field_height - 0.5,
-            1.0 if o["ball_in_flag"] else 0.0,
+            1.0 if o["ball_is_in"] else 0.0,
             my_score / 11.0, opp_score / 11.0,
         ], dtype=np.float32)
 

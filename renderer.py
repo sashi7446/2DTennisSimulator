@@ -80,7 +80,7 @@ class GameRenderer:
         if game.ball is None:
             return
         pos = self.field_to_screen(game.ball.x, game.ball.y)
-        color = YELLOW if game.ball.in_flag else (200, 200, 0)
+        color = YELLOW if game.ball.is_in else (200, 200, 0)
         pygame.draw.circle(self.screen, color, pos, game.ball.radius)
 
     def _draw_players(self, game: Game) -> None:
@@ -100,8 +100,8 @@ class GameRenderer:
             score = self.font.render(f"Player A: {game.scores[0]}  -  Player B: {game.scores[1]}", True, WHITE)
         self.screen.blit(score, score.get_rect(center=(self.window_width // 2, 25)))
 
-        in_flag = game.ball and game.ball.in_flag
-        self.screen.blit(self.small_font.render(f"Ball: {'IN' if in_flag else 'OUT'}", True, YELLOW if in_flag else GRAY), (10, 45))
+        is_in = game.ball and game.ball.is_in
+        self.screen.blit(self.small_font.render(f"Ball: {'IN' if is_in else 'OUT'}", True, YELLOW if is_in else GRAY), (10, 45))
         self.screen.blit(self.small_font.render(f"Rally: {game.rally_count}", True, WHITE), (self.window_width - 100, 45))
 
         if game.state == GameState.GAME_OVER:
@@ -138,7 +138,7 @@ class TrajectoryOverlay:
         if game.ball:
             x, y = game.ball.x, game.ball.y
             if not (math.isnan(x) or math.isnan(y) or math.isinf(x) or math.isinf(y)):
-                self.trail.append((x, y, game.ball.in_flag))
+                self.trail.append((x, y, game.ball.is_in))
 
     def draw(self, screen: "Surface", config: Config, field_to_screen) -> None:
         if len(self.trail) < 2:
@@ -193,7 +193,7 @@ class StatePanelOverlay:
         line(f"Steps: {game.total_steps}")
         line(f"State: {game.state.value}")
         if game.ball:
-            line(f"In-Flag: {game.ball.in_flag}", YELLOW if game.ball.in_flag else GRAY)
+            line(f"is_in: {game.ball.is_in}", YELLOW if game.ball.is_in else GRAY)
             lh = game.ball.last_hit_by
             line(f"Last Hit: {['A','B'][lh] if lh is not None else 'None'}")
 
@@ -285,7 +285,7 @@ class ObservationOverlay:
         line("Observation (raw)", CYAN)
         line(f"ball: ({obs['ball_x']:.1f}, {obs['ball_y']:.1f})")
         line(f"ball_v: ({obs['ball_vx']:.1f}, {obs['ball_vy']:.1f})")
-        line(f"in_flag: {obs['ball_in_flag']}")
+        line(f"is_in: {obs['ball_is_in']}")
         line(f"A: ({obs['player_a_x']:.0f}, {obs['player_a_y']:.0f})", RED)
         line(f"B: ({obs['player_b_x']:.0f}, {obs['player_b_y']:.0f})", BLUE)
         line(f"score: {obs['score_a']}-{obs['score_b']} rally: {obs['rally_count']}")
@@ -322,7 +322,7 @@ class ObservationOverlay:
         # Ball position
         bx = x + int(obs['ball_x'] * scale)
         by = my + int(obs['ball_y'] * scale)
-        ball_color = YELLOW if obs['ball_in_flag'] else (100, 100, 0)
+        ball_color = YELLOW if obs['ball_is_in'] else (100, 100, 0)
         pygame.draw.circle(screen, ball_color, (bx, by), 3)
 
         # Ball velocity vector
@@ -653,8 +653,8 @@ class DebugRenderer(GameRenderer):
             score = self.font.render(f"Player A: {game.scores[0]}  -  Player B: {game.scores[1]}", True, WHITE)
         self.screen.blit(score, score.get_rect(center=(self.window_width // 2, 25)))
 
-        in_flag = game.ball and game.ball.in_flag
-        self.screen.blit(self.small_font.render(f"Ball: {'IN' if in_flag else 'OUT'}", True, YELLOW if in_flag else GRAY), (10, 45))
+        is_in = game.ball and game.ball.is_in
+        self.screen.blit(self.small_font.render(f"Ball: {'IN' if is_in else 'OUT'}", True, YELLOW if is_in else GRAY), (10, 45))
         self.screen.blit(self.small_font.render(f"Rally: {game.rally_count}", True, WHITE), (self.window_width - 100, 45))
 
         if game.state == GameState.GAME_OVER:
