@@ -65,15 +65,15 @@ class NeuralAgent(Agent):
         is_a = self.player_id == 0
         my_x, my_y = (o["player_a_x"], o["player_a_y"]) if is_a else (o["player_b_x"], o["player_b_y"])
         opp_x, opp_y = (o["player_b_x"], o["player_b_y"]) if is_a else (o["player_a_x"], o["player_a_y"])
-        my_score = o.get("score_a" if is_a else "score_b", 0)
-        opp_score = o.get("score_b" if is_a else "score_a", 0)
+        my_score = o["score_a" if is_a else "score_b"]
+        opp_score = o["score_b" if is_a else "score_a"]
 
         return np.array([
             o["ball_x"] / self.field_width - 0.5, o["ball_y"] / self.field_height - 0.5,
-            o.get("ball_vx", 0) / 10.0, o.get("ball_vy", 0) / 10.0,
+            o["ball_vx"] / 10.0, o["ball_vy"] / 10.0,
             my_x / self.field_width - 0.5, my_y / self.field_height - 0.5,
             opp_x / self.field_width - 0.5, opp_y / self.field_height - 0.5,
-            1.0 if o.get("ball_in_flag", False) else 0.0,
+            1.0 if o["ball_in_flag"] else 0.0,
             my_score / 11.0, opp_score / 11.0,
         ], dtype=np.float32)
 
