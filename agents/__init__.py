@@ -7,6 +7,7 @@ Provides a unified interface for different AI agents.
 from agents.base import Agent, AgentConfig, load_agent
 from agents.chase import ChaseAgent, SmartChaseAgent
 from agents.random_agent import RandomAgent
+from agents.baseliner import BaselinerAgent
 from agents.positional import PositionalAgent
 
 # NeuralAgent requires numpy
@@ -27,6 +28,7 @@ __all__ = [
     "SmartChaseAgent",
     "RandomAgent",
     "PositionalAgent",
+    "BaselinerAgent",
     "NeuralAgent",
     "TransformerAgent",
     "NEURAL_AVAILABLE",

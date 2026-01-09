@@ -84,11 +84,12 @@ class Agent(ABC):
 def get_agent_class(agent_type: str) -> type:
     from agents.chase import ChaseAgent, SmartChaseAgent
     from agents.random_agent import RandomAgent
+    from agents.baseliner import BaselinerAgent
     from agents.positional import PositionalAgent
     classes = {
         "chase": ChaseAgent,
         "smart_chase": SmartChaseAgent,
-        "random": RandomAgent,
+        "random": RandomAgent, "baseliner": BaselinerAgent,
         "positional": PositionalAgent,
     }
     try:
