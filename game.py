@@ -71,6 +71,22 @@ class Game:
         rewards[1 - winner] += self.config.reward_point_lose
         return result
 
+    def _handle_wall_collision(self, wall: str, rewards: list) -> Optional[PointResult]:
+        """Handle wall collision and determine point result."""
+        if self.ball.is_in:
+            # Valid shot - hitter or serve winner
+            if self.ball.last_hit_by is not None:
+                return self._award_point(self.ball.last_hit_by, "in", rewards)
+            else:
+                winner = 1 if wall == "left" else 0
+                return self._award_point(winner, "in", rewards)
+        elif self.ball.last_hit_by is not None:
+            # Out - hitter loses
+            return self._award_point(1 - self.ball.last_hit_by, "out", rewards)
+        else:
+            self._serve()
+            return None
+
     def step(self, action_a: Tuple[int, float], action_b: Tuple[int, float]) -> StepResult:
         """Advance game by one step. Returns StepResult with rewards and state."""
         if self.state == GameState.GAME_OVER:
@@ -110,18 +126,7 @@ class Game:
                 rewards[self.ball.last_hit_by] += self.config.reward_in_area
 
             if wall:
-                if self.ball.is_in:
-                    # Valid shot - hitter or serve winner
-                    if self.ball.last_hit_by is not None:
-                        point_result = self._award_point(self.ball.last_hit_by, "in", rewards)
-                    else:
-                        winner = 1 if wall == "left" else 0
-                        point_result = self._award_point(winner, "in", rewards)
-                elif self.ball.last_hit_by is not None:
-                    # Out - hitter loses
-                    point_result = self._award_point(1 - self.ball.last_hit_by, "out", rewards)
-                else:
-                    self._serve()
+                point_result = self._handle_wall_collision(wall, rewards)
 
             if self.steps_this_point >= self.config.max_steps_per_point:
                 self.state = GameState.POINT_OVER
