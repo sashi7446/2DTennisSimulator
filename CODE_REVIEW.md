@@ -2,6 +2,8 @@
 
 率直に気になった点をまとめた。良いところも悪いところも遠慮なく書く。
 
+**注**: エージェント（agents/配下）は「obsを受け取ってactionを返すブラックボックス」という設計思想のため、各実装者の自由領域としてレビュー対象外とした。
+
 ---
 
 ## 全体的な印象
@@ -12,62 +14,7 @@
 
 ## 気になる点
 
-### 1. マジックナンバーの嵐 (transformer.py, neural.py)
-
-```python
-# transformer.py:234
-dx = (ball_x - my_x) / 800.0
-dy = (ball_y - my_y) / 400.0
-```
-
-```python
-# transformer.py:249
-target_x = 37.5 if self.player_id == 0 else 762.5
-```
-
-`config.py` でちゃんと定義してるのに、各所で `800`, `400`, `37.5`, `762.5` がハードコードされてる。設定変えたら全部壊れる。
-
-### 2. TransformerAgent の「独り言」機能
-
-```python
-# transformer.py:347-351
-if self.step_counter % 500 == 0:
-    thoughts = ["ボールの軌道が見える...", "もっと速く...！", ...]
-    print(f"  🤖 (独り言): {np.random.choice(thoughts)}")
-```
-
-正直これはコードに残すべきじゃない。デバッグで遊んでた名残だと思うけど、本番コードに絵文字と独り言があるとレビューで突っ込まれる。ログレベルで制御するか、削除した方がいい。
-
-### 3. 日本語と英語のコメント混在
-
-```python
-# transformer.py
-"""Transformer-based Neural Network Agent
-
-より強力なアーキテクチャ:
-- Multi-head Self-Attention: 複数の観測要素間の関係性を学習
-"""
-```
-
-個人プロジェクトなら好みの問題だけど、統一した方が読みやすい。
-
-### 4. 重複コード (ヘルパー関数)
-
-`_get_my_pos()` と `_angle_to_direction()` が `chase.py` と `positional.py` で全く同じ実装。共通モジュールに出すべき。
-
-```python
-# chase.py:9-12
-def _get_my_pos(obs: Dict[str, Any], player_id: int) -> Tuple[float, float]:
-    prefix = "player_a" if player_id == 0 else "player_b"
-    return obs[f"{prefix}_x"], obs[f"{prefix}_y"]
-
-# positional.py:10-13  ← 完全に同じ
-def _get_my_pos(obs: Dict[str, Any], player_id: int) -> Tuple[float, float]:
-    prefix = "player_a" if player_id == 0 else "player_b"
-    return obs[f"{prefix}_x"], obs[f"{prefix}_y"]
-```
-
-### 5. Config.to_dict() が手動列挙
+### 1. Config.to_dict() が手動列挙
 
 ```python
 # config.py:43-62
@@ -81,7 +28,7 @@ def to_dict(self) -> Dict[str, Any]:
 
 `dataclasses.asdict(self)` で一発。フィールド追加するたびに `to_dict()` の更新を忘れるパターン。
 
-### 6. player.py の can_hit() のロジック
+### 2. player.py の can_hit() のロジック
 
 ```python
 # player.py:41-42
@@ -91,7 +38,7 @@ def can_hit(self, ball: Ball) -> bool:
 
 `ball.in_flag` が True のときだけ打てる仕様、直感に反する。ボールがインエリアを通過した後でないと打てないのは分かるけど、変数名が `in_flag` だと「インエリア内にいる」と誤解しやすい。`passed_through_in_area` とかの方が意図が伝わる。
 
-### 7. game.py の step() が複雑
+### 3. game.py の step() が複雑
 
 ```python
 # game.py:74-124
@@ -100,16 +47,7 @@ def step(self, action_a, action_b) -> StepResult:
 
 50行のメソッドに条件分岐が多重でネスト。責務を分離して `_handle_ball_collision()` とか切り出した方がテストしやすい。
 
-### 8. TransformerAgent.learn() が長すぎ (65行)
-
-```python
-# transformer.py:364-429
-def learn(self, reward: float, done: bool) -> None:
-```
-
-日本語のprint文、エリートプール管理、変異処理、状態リセットが全部ここに詰め込まれてる。責務多すぎ。
-
-### 9. グローバル変数 (debug.py)
+### 4. グローバル変数 (debug.py)
 
 ```python
 # debug.py:311-325
@@ -121,7 +59,7 @@ def get_logger() -> DebugLogger:
 
 シングルトンパターンの悪い例。テストで困る。依存性注入にした方がいい。
 
-### 10. env.py の observation_space 定義
+### 5. env.py の observation_space 定義
 
 ```python
 # env.py:30-42
@@ -137,10 +75,6 @@ self.observation_space = spaces.Dict({
 ---
 
 ## 設計上の懸念
-
-### 進化的アルゴリズムと勾配法の混在
-
-TransformerAgentは進化的アルゴリズム（エリートプール、変異）を使ってるのに、NeuralAgentは純粋なPolicy Gradient。どっちかに統一するか、明確に分けた方がいい。今は中途半端に見える。
 
 ### `ball.in_flag` の命名
 
@@ -160,7 +94,7 @@ TransformerAgentは進化的アルゴリズム（エリートプール、変異�
 
 4. **Agentの抽象化** - 基底クラスから派生させる設計は拡張しやすい。
 
-5. **設定の外出し** - `Config` dataclass での管理は正しいアプローチ。（ただし、使い切れてない）
+5. **設定の外出し** - `Config` dataclass での管理は正しいアプローチ。
 
 ---
 
@@ -168,16 +102,15 @@ TransformerAgentは進化的アルゴリズム（エリートプール、変異�
 
 | 優先度 | 項目 | 理由 |
 |--------|------|------|
-| 高 | マジックナンバー排除 | 設定変更時に壊れる |
-| 高 | 独り言print削除 | 本番コードとして不適切 |
-| 中 | ヘルパー関数の共通化 | DRY原則違反 |
-| 中 | `in_flag` のリネーム | 可読性向上 |
-| 低 | コメント言語統一 | 好みの問題 |
+| 高 | `in_flag` のリネーム | 可読性向上、誤解防止 |
+| 中 | `Config.to_dict()` を `asdict()` に | メンテ漏れ防止 |
+| 中 | `game.step()` の分割 | テスタビリティ向上 |
+| 低 | グローバルロガー廃止 | テスト容易性 |
 
 ---
 
 ## 総評
 
-「動くプロトタイプ」としては十分。ただ、長期的にメンテするなら上記の点は直した方がいい。特にマジックナンバーは早めに潰さないと後で地獄を見る。
+「動くプロトタイプ」としては十分。コアエンジン（game, ball, player, field）の設計は堅実。エージェントが独立したブラックボックスとして競い合う構造も面白い。
 
-TransformerAgentの「魔改造 V3.7 Interceptor-Prime v4」みたいなコメント、実験してる感じは伝わるけど、そのノリのままプロダクションに持っていくとコードレビューで詰められるので気をつけて。
+長期的にメンテするなら `in_flag` の命名だけは早めに直した方がいい。後から変えるとテストも全部書き直しになる。
