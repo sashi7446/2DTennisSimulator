@@ -183,6 +183,8 @@ class TestGamePointScoring(unittest.TestCase):
         self.game.ball.vy = 0
         self.game.ball.is_in = True
         self.game.ball.last_hit_by = 0  # Player A hit it
+        # Move player B away so they can't interfere
+        self.game.player_b.x = self.config.field_width / 2
 
         old_score_a = self.game.scores[0]
         result = self.game.step((16, 0), (16, 0))
@@ -218,6 +220,8 @@ class TestGamePointScoring(unittest.TestCase):
         self.game.ball.vy = 0
         self.game.ball.is_in = True
         self.game.ball.last_hit_by = 0
+        # Move player B away so they can't interfere
+        self.game.player_b.x = self.config.field_width / 2
 
         result = self.game.step((16, 0), (16, 0))
 
