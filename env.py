@@ -37,8 +37,8 @@ class TennisEnv:
             "player_a_y": spaces.Box(0, 1, (1,), np.float32),
             "player_b_x": spaces.Box(0, 1, (1,), np.float32),
             "player_b_y": spaces.Box(0, 1, (1,), np.float32),
-            "score_a": spaces.Box(0, 100, (1,), np.int32),
-            "score_b": spaces.Box(0, 100, (1,), np.int32),
+            "score_a": spaces.Box(0, np.inf, (1,), np.int32),
+            "score_b": spaces.Box(0, np.inf, (1,), np.int32),
         })
         self.action_space = spaces.Tuple((
             spaces.Discrete(NUM_MOVEMENT_ACTIONS),
