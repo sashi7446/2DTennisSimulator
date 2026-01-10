@@ -225,8 +225,14 @@ class TestTennisEnvStep(unittest.TestCase):
     def test_multiple_steps(self):
         """Test running multiple steps."""
         for _ in range(10):
-            action_a = (np.random.randint(0, NUM_MOVEMENT_ACTIONS), np.array([np.random.uniform(0, 360)]))
-            action_b = (np.random.randint(0, NUM_MOVEMENT_ACTIONS), np.array([np.random.uniform(0, 360)]))
+            action_a = (
+                np.random.randint(0, NUM_MOVEMENT_ACTIONS),
+                np.array([np.random.uniform(0, 360)]),
+            )
+            action_b = (
+                np.random.randint(0, NUM_MOVEMENT_ACTIONS),
+                np.array([np.random.uniform(0, 360)]),
+            )
 
             obs, rewards, done, truncated, info = self.env.step(action_a, action_b)
 
@@ -359,7 +365,10 @@ class TestSinglePlayerTennisEnvStep(unittest.TestCase):
     def test_multiple_steps(self):
         """Test running multiple steps."""
         for _ in range(10):
-            action = (np.random.randint(0, NUM_MOVEMENT_ACTIONS), np.array([np.random.uniform(0, 360)]))
+            action = (
+                np.random.randint(0, NUM_MOVEMENT_ACTIONS),
+                np.array([np.random.uniform(0, 360)]),
+            )
 
             obs, reward, done, truncated, info = self.env.step(action)
 

@@ -1,14 +1,13 @@
 """Tests for Agent classes."""
 
 import os
-import shutil
 import sys
 import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agents.base import Agent, AgentConfig, get_agent_class, load_agent
+from agents.base import AgentConfig, get_agent_class, load_agent
 from agents.baseliner import BaselinerAgent
 from agents.chase import ChaseAgent, SmartChaseAgent
 from agents.positional import PositionalAgent
@@ -330,7 +329,7 @@ class TestPositionalAgent(unittest.TestCase):
             action = self.agent.act(self.obs)
             angles.append(action[1])
         # Should have some variety in angles
-        unique_angles = set(int(a) for a in angles)
+        unique_angles = {int(a) for a in angles}
         self.assertGreater(len(unique_angles), 1)
 
 
