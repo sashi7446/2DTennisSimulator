@@ -87,6 +87,15 @@ class Game:
             self._serve()
             return None
 
+    def _validate_action(self, action: Tuple[int, float]) -> Tuple[int, float]:
+        """Validate and clamp action to valid range."""
+        move, hit_angle = action
+        # Clamp movement to valid range (0 to NUM_MOVEMENT_ACTIONS-1)
+        move = max(0, min(NUM_MOVEMENT_ACTIONS - 1, int(move)))
+        # Clamp hit angle to 0-360 range
+        hit_angle = float(hit_angle) % 360.0
+        return (move, hit_angle)
+
     def step(self, action_a: Tuple[int, float], action_b: Tuple[int, float]) -> StepResult:
         """Advance game by one step. Returns StepResult with rewards and state."""
         if self.state == GameState.GAME_OVER:
@@ -97,6 +106,10 @@ class Game:
 
         self.steps_this_point += 1
         self.total_steps += 1
+
+        # Validate and clamp actions to valid ranges
+        action_a = self._validate_action(action_a)
+        action_b = self._validate_action(action_b)
 
         move_a, hit_angle_a = action_a
         move_b, hit_angle_b = action_b

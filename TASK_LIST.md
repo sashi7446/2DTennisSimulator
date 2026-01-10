@@ -28,23 +28,23 @@
 
 **実装手順:**
 
-- [ ] `pyproject.toml` を作成し、ツール設定を統一管理
-- [ ] **ruff** (高速リンター) の導入
+- [x] `pyproject.toml` を作成し、ツール設定を統一管理
+- [x] **ruff** (高速リンター) の導入
   ```bash
   pip install ruff
   ruff check .
   ```
-- [ ] **black** (フォーマッター) の導入
+- [x] **black** (フォーマッター) の導入
   ```bash
   pip install black
   black --check .
   ```
-- [ ] **mypy** (型チェック) の導入
+- [x] **mypy** (型チェック) の導入
   ```bash
   pip install mypy
   mypy --strict .
   ```
-- [ ] CI/CD に統合 (`.github/workflows/ci.yml` へ追加)
+- [x] CI/CD に統合 (`.github/workflows/ci.yml` へ追加)
   ```yaml
   - name: Lint and type check
     run: |
@@ -142,24 +142,25 @@
 
 **実装手順:**
 
-- [ ] **game.py:step()** — アクション範囲チェック追加
+- [x] **game.py:step()** — アクション範囲チェック追加
   ```python
-  def step(self, action1, action2):
-      action1 = np.clip(action1, -1.0, 1.0)
-      action2 = np.clip(action2, -1.0, 1.0)
-      # ...
+  def _validate_action(self, action):
+      move, hit_angle = action
+      move = max(0, min(NUM_MOVEMENT_ACTIONS - 1, int(move)))
+      hit_angle = float(hit_angle) % 360.0
+      return (move, hit_angle)
   ```
 
-- [ ] **agents/base.py** — act() の戻り値検証
+- [x] **agents/base.py** — act() の戻り値検証
   ```python
   def validate_action(self, action):
       movement, angle = action
-      assert -1.0 <= movement <= 1.0
-      assert -1.0 <= angle <= 1.0
-      return action
+      movement = max(0, min(16, int(movement)))
+      angle = float(angle) % 360.0
+      return (movement, angle)
   ```
 
-- [ ] **env.py** — pygame 未インストール時の明確なエラー
+- [x] **env.py** — pygame 未インストール時の明確なエラー
   ```python
   try:
       import pygame
@@ -399,6 +400,8 @@
 | 進捗バー表示 | 2026-01-10 | `tqdm` を `run_headless_training` に統合 |
 | ヘルプテキスト充実 | 2026-01-10 | CLI ヘルプに詳細な説明と使用例を追加 |
 | CHANGELOG.md | 2026-01-10 | バージョン履歴管理を開始 |
+| 型チェック・リンター導入 | 2026-01-10 | `pyproject.toml`, ruff, black, mypy, CI統合 |
+| エラー処理・バリデーション強化 | 2026-01-10 | `game.py`, `agents/base.py`, `env.py` |
 
 ---
 
@@ -455,4 +458,4 @@
 
 ---
 
-*最終更新: 2026-01-10 (3件完了: 進捗バー、ヘルプ、CHANGELOG)*
+*最終更新: 2026-01-10 (5件完了: 進捗バー、ヘルプ、CHANGELOG、型チェック・リンター導入、エラー処理強化)*

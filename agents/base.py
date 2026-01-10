@@ -35,6 +35,12 @@ class AgentConfig:
 class Agent(ABC):
     """Abstract base: receives observations, returns (movement, hit_angle) actions."""
 
+    # Valid action ranges
+    MIN_MOVEMENT = 0
+    MAX_MOVEMENT = 16  # 0-15: directions, 16: stay
+    MIN_ANGLE = 0.0
+    MAX_ANGLE = 360.0
+
     def __init__(self, config: Optional[AgentConfig] = None):
         self.config = config or AgentConfig()
         self.player_id: Optional[int] = None
@@ -43,6 +49,22 @@ class Agent(ABC):
     def act(self, observation: Dict[str, Any]) -> Tuple[int, float]:
         """Return (movement_direction 0-16, hit_angle 0-360)."""
         pass
+
+    def validate_action(self, action: Tuple[int, float]) -> Tuple[int, float]:
+        """Validate and clamp action to valid ranges.
+
+        Args:
+            action: Tuple of (movement_direction, hit_angle)
+
+        Returns:
+            Validated action tuple with clamped values
+        """
+        movement, angle = action
+        # Clamp movement to valid range
+        movement = max(self.MIN_MOVEMENT, min(self.MAX_MOVEMENT, int(movement)))
+        # Normalize angle to 0-360 range
+        angle = float(angle) % self.MAX_ANGLE
+        return (movement, angle)
 
     def reset(self) -> None:
         pass
