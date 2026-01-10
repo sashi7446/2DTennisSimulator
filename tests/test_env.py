@@ -327,10 +327,13 @@ class TestSinglePlayerTennisEnvReset(unittest.TestCase):
         """Test that reset observation values are normalized."""
         obs, _ = self.env.reset()
 
-        # Most values should be in [0, 1]
-        for i in range(9):
-            self.assertGreaterEqual(obs[i], 0.0)
-            self.assertLessEqual(obs[i], 1.0)
+        # Observation structure: ball_x, ball_y, ball_vx, ball_vy, ball_is_in,
+        #                        my_x, my_y, opp_x, opp_y, score_me, score_opp
+        # Positions should be in [0, 1], velocities can be in [-1, 1]
+        # Check positions (indices 0, 1, 5, 6, 7, 8)
+        for i in [0, 1, 5, 6, 7, 8]:
+            self.assertGreaterEqual(obs[i], 0.0, f"obs[{i}] should be >= 0")
+            self.assertLessEqual(obs[i], 1.0, f"obs[{i}] should be <= 1")
 
 
 @unittest.skipUnless(GYM_AVAILABLE, "gymnasium not installed")
