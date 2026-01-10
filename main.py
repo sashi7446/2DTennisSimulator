@@ -10,6 +10,12 @@ import argparse
 import os
 from typing import Optional
 
+try:
+    from tqdm import tqdm
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
+
 from config import Config
 from game import Game
 from agents import (
@@ -275,7 +281,14 @@ def run_headless_training(
 
     wins = [0, 0]
 
-    for episode in range(1, num_episodes + 1):
+    # Use tqdm progress bar if available
+    episode_range = range(1, num_episodes + 1)
+    if TQDM_AVAILABLE:
+        episode_iterator = tqdm(episode_range, desc="Training", unit="episode")
+    else:
+        episode_iterator = episode_range
+
+    for episode in episode_iterator:
         game = Game(config)
         agent_a.reset()
         agent_b.reset()
@@ -290,7 +303,15 @@ def run_headless_training(
 
         wins[game.winner] += 1
 
-        if episode % 10 == 0:
+        # Update progress bar description with current stats
+        if TQDM_AVAILABLE and episode % 10 == 0:
+            win_rate_a = 100 * wins[0] / episode
+            win_rate_b = 100 * wins[1] / episode
+            episode_iterator.set_postfix({
+                'A': f'{wins[0]} ({win_rate_a:.1f}%)',
+                'B': f'{wins[1]} ({win_rate_b:.1f}%)'
+            })
+        elif not TQDM_AVAILABLE and episode % 10 == 0:
             print(f"Episode {episode}: Wins A={wins[0]} B={wins[1]} "
                   f"({100*wins[0]/episode:.1f}% vs {100*wins[1]/episode:.1f}%)")
 
@@ -372,54 +393,100 @@ def list_agent_types() -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="2D Tennis Simulator - Watch AI agents learn and compete!"
+        description="2D Tennis Simulator - Watch AI agents learn and compete!",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Watch two chase agents compete visually
+  python main.py --agent-a chase --agent-b chase
+
+  # Train a neural agent against chase AI with debug mode
+  python main.py --agent-a neural --agent-b chase --debug
+
+  # Fast headless training for 500 episodes
+  python main.py --mode headless --agent-a neural --agent-b chase --episodes 500
+
+  # Benchmark mode: train 300 episodes then visualize
+  python main.py --mode benchmark --agent-a neural --agent-b smart --episodes 300
+
+  # List all available agent types
+  python main.py --mode list
+
+  # Load a saved agent and compete
+  python main.py --agent-a saved_agents/agent_a_neural --agent-b chase
+
+For more information, see README.md
+"""
     )
     parser.add_argument(
         "--mode",
         choices=["visual", "headless", "benchmark", "list"],
         default="visual",
-        help="Game mode: visual, headless, benchmark (train then debug), list",
+        help="Game mode (default: %(default)s)\n"
+             "  visual: Watch games with pygame rendering\n"
+             "  headless: Fast training without graphics\n"
+             "  benchmark: Train headless, then show debug view\n"
+             "  list: Display available agent types",
     )
     parser.add_argument(
         "--agent-a",
         type=str,
         default="chase",
-        help="Agent type for Player A (chase/smart/random/neural or path)",
+        metavar="TYPE",
+        help="Agent type for Player A (default: %(default)s)\n"
+             "Built-in types: chase, smart, random, neural, transformer\n"
+             "Or provide a path to a saved agent directory",
     )
     parser.add_argument(
         "--agent-b",
         type=str,
         default="chase",
-        help="Agent type for Player B (chase/smart/random/neural or path)",
+        metavar="TYPE",
+        help="Agent type for Player B (default: %(default)s)\n"
+             "Built-in types: chase, smart, random, neural, transformer\n"
+             "Or provide a path to a saved agent directory",
     )
     parser.add_argument(
         "--speed",
         type=float,
         default=None,
-        help=f"Ball speed (default: {Config().ball_speed})",
+        metavar="SPEED",
+        help=f"Ball speed in pixels/frame (default: {Config().ball_speed})\n"
+             "Higher values make the game faster and more challenging",
     )
     parser.add_argument(
         "--fps",
         type=int,
         default=None,
-        help=f"Frames per second for visual mode (default: {Config().fps})",
+        metavar="FPS",
+        help=f"Target frames per second in visual mode (default: {Config().fps})\n"
+             "Use 0 for unlimited FPS (max speed)",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Enable debug mode with state overlay and graphs",
+        help="Enable debug mode in visual mode\n"
+             "Shows: state overlay, reward graphs, trajectory prediction\n"
+             "Keyboard: D (debug), T (trajectory), P (graphs), G (grid)\n"
+             "          1-4 (speed), SPACE (pause), R (reset), S (save)",
     )
     parser.add_argument(
         "--save-dir",
         type=str,
         default=None,
-        help="Directory to save trained agents",
+        metavar="DIR",
+        help="Directory to save trained agents (optional)\n"
+             "Agents are saved at regular intervals during training\n"
+             "In visual mode, press 'S' to save manually",
     )
     parser.add_argument(
         "--episodes",
         type=int,
         default=100,
-        help="Number of episodes for headless training (default: 100)",
+        metavar="N",
+        help="Number of episodes for headless/benchmark training\n"
+             "(default: %(default)s)\n"
+             "Each episode is one complete point (serve until wall hit)",
     )
 
     args = parser.parse_args()
