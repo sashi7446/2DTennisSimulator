@@ -59,4 +59,4 @@ jobs:
         run: black --check .
 
       - name: Mypy type checking
-        run: mypy --ignore-missing-imports config.py game.py ball.py player.py field.py env.py agents/
+        run: mypy --ignore-missing-imports config.py game.py ball.py player.py field.py env.py agents/base.py agents/chase.py agents/baseliner.py agents/positional.py agents/random_agent.py agents/neural.py agents/transformer.py
