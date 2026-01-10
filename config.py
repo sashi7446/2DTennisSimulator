@@ -32,6 +32,7 @@ class Config:
     reward_point_lose: float = -1.0
     reward_rally: float = 0.1
     reward_in_area: float = 0.05  # Reward when ball passes through in-area (is_in turns ON)
+    reward_step: float = 0.0  # Reward per step (time-based, typically negative to encourage faster play)
 
     # Game settings
     max_steps_per_point: int = 1000  # Prevent infinite rallies

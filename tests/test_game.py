@@ -347,6 +347,74 @@ class TestGameObservation(unittest.TestCase):
         self.assertEqual(obs["ball_is_in"], game.ball.is_in)
 
 
+class TestStepReward(unittest.TestCase):
+    """Test time-based step reward."""
+
+    def test_step_reward_default_zero(self):
+        """Step reward should be 0.0 by default."""
+        game = Game()
+        self.assertEqual(game.config.reward_step, 0.0)
+
+    def test_step_reward_applied_each_step(self):
+        """Step reward should be applied to both players each step."""
+        config = Config(reward_step=-0.01)
+        game = Game(config)
+
+        # Position ball in center so no other rewards are triggered
+        game.ball.x = game.config.field_width / 2
+        game.ball.y = game.config.field_height / 2
+        game.ball.vx = 0
+        game.ball.vy = 0
+        game.ball.is_in = False
+
+        result = game.step((16, 0), (16, 0))
+
+        self.assertEqual(result.rewards[0], -0.01)
+        self.assertEqual(result.rewards[1], -0.01)
+
+    def test_step_reward_cumulative_over_steps(self):
+        """Step reward should accumulate over multiple steps."""
+        config = Config(reward_step=-0.01)
+        game = Game(config)
+
+        # Position ball stationary in center
+        game.ball.x = game.config.field_width / 2
+        game.ball.y = game.config.field_height / 2
+        game.ball.vx = 0
+        game.ball.vy = 0
+        game.ball.is_in = False
+
+        total_reward_a = 0.0
+        total_reward_b = 0.0
+
+        for _ in range(10):
+            result = game.step((16, 0), (16, 0))
+            total_reward_a += result.rewards[0]
+            total_reward_b += result.rewards[1]
+
+        self.assertAlmostEqual(total_reward_a, -0.1, places=5)
+        self.assertAlmostEqual(total_reward_b, -0.1, places=5)
+
+    def test_step_reward_combined_with_other_rewards(self):
+        """Step reward should combine with other rewards like rally reward."""
+        config = Config(reward_step=-0.01, reward_rally=0.1)
+        game = Game(config)
+
+        # Position ball near player A with is_in ON for hit
+        game.ball.x = game.player_a.x + 10
+        game.ball.y = game.player_a.y
+        game.ball.is_in = True
+        game.ball.vx = 0
+        game.ball.vy = 0
+
+        result = game.step((16, 45), (16, 0))
+
+        # Player A: step_reward + rally_reward = -0.01 + 0.1 = 0.09
+        self.assertAlmostEqual(result.rewards[0], 0.09, places=5)
+        # Player B: only step_reward = -0.01
+        self.assertEqual(result.rewards[1], -0.01)
+
+
 class TestServeLogic(unittest.TestCase):
     """Test serve and point restart logic."""
 
