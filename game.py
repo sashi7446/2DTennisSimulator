@@ -1,14 +1,13 @@
 """Game logic for 2D Tennis Simulator."""
 
-import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Tuple, Optional, Dict, Any
+from typing import Any, Dict, Optional, Tuple
 
+from ball import Ball, create_serve_ball
 from config import Config
 from field import Field
-from ball import Ball, create_serve_ball
-from player import Player, create_players, NUM_MOVEMENT_ACTIONS
+from player import NUM_MOVEMENT_ACTIONS, create_players
 
 
 class GameState(Enum):
@@ -144,20 +143,32 @@ class Game:
             if self.steps_this_point >= self.config.max_steps_per_point:
                 self.state = GameState.POINT_OVER
 
-        return StepResult((rewards[0], rewards[1]), self.state == GameState.GAME_OVER, point_result, (hit_a, hit_b))
+        return StepResult(
+            (rewards[0], rewards[1]),
+            self.state == GameState.GAME_OVER,
+            point_result,
+            (hit_a, hit_b),
+        )
 
     def get_observation(self) -> Dict[str, Any]:
         """Get current game state for AI agents."""
         bx, by = self.ball.position if self.ball else (0, 0)
         bvx, bvy = self.ball.velocity if self.ball else (0, 0)
         return {
-            "ball_x": bx, "ball_y": by, "ball_vx": bvx, "ball_vy": bvy,
+            "ball_x": bx,
+            "ball_y": by,
+            "ball_vx": bvx,
+            "ball_vy": bvy,
             "ball_is_in": self.ball.is_in if self.ball else False,
-            "player_a_x": self.player_a.x, "player_a_y": self.player_a.y,
-            "player_b_x": self.player_b.x, "player_b_y": self.player_b.y,
-            "score_a": self.scores[0], "score_b": self.scores[1],
+            "player_a_x": self.player_a.x,
+            "player_a_y": self.player_a.y,
+            "player_b_x": self.player_b.x,
+            "player_b_y": self.player_b.y,
+            "score_a": self.scores[0],
+            "score_b": self.scores[1],
             "rally_count": self.rally_count,
-            "field_width": self.config.field_width, "field_height": self.config.field_height,
+            "field_width": self.config.field_width,
+            "field_height": self.config.field_height,
         }
 
     def reset(self) -> Dict[str, Any]:

@@ -12,31 +12,34 @@ from typing import Optional
 
 try:
     from tqdm import tqdm
+
     TQDM_AVAILABLE = True
 except ImportError:
     TQDM_AVAILABLE = False
 
-from config import Config
-from game import Game
 from agents import (
+    NEURAL_AVAILABLE,
     Agent,
     ChaseAgent,
-    SmartChaseAgent,
     RandomAgent,
+    SmartChaseAgent,
     load_agent,
-    NEURAL_AVAILABLE,
 )
+from config import Config
+from game import Game
 
 if NEURAL_AVAILABLE:
     from agents import NeuralAgent, TransformerAgent
 
 
-def create_agent(agent_type: str, player_id: int, config: Config, load_path: Optional[str] = None) -> Agent:
+def create_agent(
+    agent_type: str, player_id: int, config: Config, load_path: Optional[str] = None
+) -> Agent:
     """Create or load an agent."""
     if load_path and os.path.exists(load_path):
         agent = load_agent(load_path)
         agent.set_player_id(player_id)
-        if hasattr(agent, 'set_field_dimensions'):
+        if hasattr(agent, "set_field_dimensions"):
             agent.set_field_dimensions(config.field_width, config.field_height)
         print(f"Loaded agent from {load_path}: {agent.config.name}")
         return agent
@@ -67,7 +70,7 @@ def create_agent(agent_type: str, player_id: int, config: Config, load_path: Opt
             agent = ChaseAgent()
 
     agent.set_player_id(player_id)
-    if hasattr(agent, 'set_field_dimensions'):
+    if hasattr(agent, "set_field_dimensions"):
         agent.set_field_dimensions(config.field_width, config.field_height)
 
     return agent
@@ -89,9 +92,10 @@ def run_visual_game(
     - Game: runs simulation logic
     """
     import time
+
     try:
-        from renderer import GameRenderer, DebugRenderer
         from input_handler import InputHandler
+        from renderer import DebugRenderer, GameRenderer
         from stats_tracker import StatsTracker
     except ImportError as e:
         print(f"Error: {e}")
@@ -115,10 +119,10 @@ def run_visual_game(
     else:
         renderer = GameRenderer(config)
 
-    print(f"\n=== Match ===")
+    print("\n=== Match ===")
     print(f"Player A: {agent_a.config.name} ({agent_a.config.agent_type})")
     print(f"Player B: {agent_b.config.name} ({agent_b.config.agent_type})")
-    print(f"=============\n")
+    print("=============\n")
 
     episode_count = 0
     total_wins = [0, 0]
@@ -197,10 +201,17 @@ def run_visual_game(
                     fps_last_time = now
 
                 if debug:
-                    renderer.render(game, total_wins=tuple(total_wins),
-                                    stats=stats, input_state=input_handler.state,
-                                    frame_count=frame_count, actual_fps=actual_fps,
-                                    obs=last_obs, actions=last_actions, rewards=last_rewards)
+                    renderer.render(
+                        game,
+                        total_wins=tuple(total_wins),
+                        stats=stats,
+                        input_state=input_handler.state,
+                        frame_count=frame_count,
+                        actual_fps=actual_fps,
+                        obs=last_obs,
+                        actions=last_actions,
+                        rewards=last_rewards,
+                    )
                 else:
                     renderer.render(game, total_wins=tuple(total_wins))
 
@@ -216,15 +227,15 @@ def run_visual_game(
             if debug and stats:
                 stats.end_episode(winner)
 
-            winner_name = "A" if winner == 0 else "B"
-            # print(f"Episode {episode_count}: Player {winner_name} wins! "
-            #       f"Total wins: A={total_wins[0]}, B={total_wins[1]}")
+            # winner_name = "A" if winner == 0 else "B"
 
             for name, agent in [("A", agent_a), ("B", agent_b)]:
                 info = agent.get_info()
                 if "episodes_trained" in info:
-                    print(f"  {name}: {info.get('episodes_trained', 0)} episodes trained, "
-                          f"recent avg: {info.get('recent_avg_reward', 0):.2f}")
+                    print(
+                        f"  {name}: {info.get('episodes_trained', 0)} episodes trained, "
+                        f"recent avg: {info.get('recent_avg_reward', 0):.2f}"
+                    )
 
             # Brief pause to show result (skip in unlimited mode)
             if input_handler.state.target_fps != 0:
@@ -233,10 +244,17 @@ def run_visual_game(
                     if not input_handler.running or input_handler.consume_reset_request():
                         break
                     if debug:
-                        renderer.render(game, total_wins=tuple(total_wins),
-                                        stats=stats, input_state=input_handler.state,
-                                        frame_count=frame_count, actual_fps=actual_fps,
-                                        obs=last_obs, actions=last_actions, rewards=last_rewards)
+                        renderer.render(
+                            game,
+                            total_wins=tuple(total_wins),
+                            stats=stats,
+                            input_state=input_handler.state,
+                            frame_count=frame_count,
+                            actual_fps=actual_fps,
+                            obs=last_obs,
+                            actions=last_actions,
+                            rewards=last_rewards,
+                        )
                     else:
                         renderer.render(game, total_wins=tuple(total_wins))
                     renderer.tick(60)
@@ -273,11 +291,11 @@ def run_headless_training(
     Returns:
         Tuple of (wins, agent_a, agent_b) for use in benchmark mode.
     """
-    print(f"\n=== Headless Training ===")
+    print("\n=== Headless Training ===")
     print(f"Player A: {agent_a.config.name}")
     print(f"Player B: {agent_b.config.name}")
     print(f"Episodes: {num_episodes}")
-    print(f"=========================\n")
+    print("=========================\n")
 
     wins = [0, 0]
 
@@ -307,13 +325,14 @@ def run_headless_training(
         if TQDM_AVAILABLE and episode % 10 == 0:
             win_rate_a = 100 * wins[0] / episode
             win_rate_b = 100 * wins[1] / episode
-            episode_iterator.set_postfix({
-                'A': f'{wins[0]} ({win_rate_a:.1f}%)',
-                'B': f'{wins[1]} ({win_rate_b:.1f}%)'
-            })
+            episode_iterator.set_postfix(
+                {"A": f"{wins[0]} ({win_rate_a:.1f}%)", "B": f"{wins[1]} ({win_rate_b:.1f}%)"}
+            )
         elif not TQDM_AVAILABLE and episode % 10 == 0:
-            print(f"Episode {episode}: Wins A={wins[0]} B={wins[1]} "
-                  f"({100*wins[0]/episode:.1f}% vs {100*wins[1]/episode:.1f}%)")
+            print(
+                f"Episode {episode}: Wins A={wins[0]} B={wins[1]} "
+                f"({100*wins[0]/episode:.1f}% vs {100*wins[1]/episode:.1f}%)"
+            )
 
         if save_dir and episode % save_interval == 0:
             _save_agents(agent_a, agent_b, save_dir, episode)
@@ -340,14 +359,16 @@ def run_benchmark(
     2. Automatically launches debug visualization to observe learned behavior
     """
     print(f"\n{'='*50}")
-    print(f"  BENCHMARK MODE")
+    print("  BENCHMARK MODE")
     print(f"  Training: {train_episodes} episodes (headless)")
-    print(f"  Then: Debug visualization")
+    print("  Then: Debug visualization")
     print(f"{'='*50}\n")
 
     # Phase 1: Headless training
     wins, agent_a, agent_b = run_headless_training(
-        config, agent_a, agent_b,
+        config,
+        agent_a,
+        agent_b,
         num_episodes=train_episodes,
         save_dir=save_dir,
         save_interval=50,
@@ -355,22 +376,24 @@ def run_benchmark(
 
     # Print training summary
     print(f"\n{'='*50}")
-    print(f"  TRAINING COMPLETE")
+    print("  TRAINING COMPLETE")
     print(f"  Results: A={wins[0]} wins ({100*wins[0]/train_episodes:.1f}%)")
     print(f"           B={wins[1]} wins ({100*wins[1]/train_episodes:.1f}%)")
     print(f"{'='*50}")
-    print(f"\nLaunching debug visualization...")
-    print(f"Watch how the trained agents play!\n")
+    print("\nLaunching debug visualization...")
+    print("Watch how the trained agents play!\n")
 
     # Disable learning for visualization (optional: observe pure policy)
-    if hasattr(agent_a, 'set_training_mode'):
+    if hasattr(agent_a, "set_training_mode"):
         agent_a.set_training_mode(False)
-    if hasattr(agent_b, 'set_training_mode'):
+    if hasattr(agent_b, "set_training_mode"):
         agent_b.set_training_mode(False)
 
     # Phase 2: Debug visualization
     run_visual_game(
-        config, agent_a, agent_b,
+        config,
+        agent_a,
+        agent_b,
         debug=True,
         save_dir=save_dir,
     )
@@ -416,17 +439,17 @@ Examples:
   python main.py --agent-a saved_agents/agent_a_neural --agent-b chase
 
 For more information, see README.md
-"""
+""",
     )
     parser.add_argument(
         "--mode",
         choices=["visual", "headless", "benchmark", "list"],
         default="visual",
         help="Game mode (default: %(default)s)\n"
-             "  visual: Watch games with pygame rendering\n"
-             "  headless: Fast training without graphics\n"
-             "  benchmark: Train headless, then show debug view\n"
-             "  list: Display available agent types",
+        "  visual: Watch games with pygame rendering\n"
+        "  headless: Fast training without graphics\n"
+        "  benchmark: Train headless, then show debug view\n"
+        "  list: Display available agent types",
     )
     parser.add_argument(
         "--agent-a",
@@ -434,8 +457,8 @@ For more information, see README.md
         default="chase",
         metavar="TYPE",
         help="Agent type for Player A (default: %(default)s)\n"
-             "Built-in types: chase, smart, random, neural, transformer\n"
-             "Or provide a path to a saved agent directory",
+        "Built-in types: chase, smart, random, neural, transformer\n"
+        "Or provide a path to a saved agent directory",
     )
     parser.add_argument(
         "--agent-b",
@@ -443,8 +466,8 @@ For more information, see README.md
         default="chase",
         metavar="TYPE",
         help="Agent type for Player B (default: %(default)s)\n"
-             "Built-in types: chase, smart, random, neural, transformer\n"
-             "Or provide a path to a saved agent directory",
+        "Built-in types: chase, smart, random, neural, transformer\n"
+        "Or provide a path to a saved agent directory",
     )
     parser.add_argument(
         "--speed",
@@ -452,7 +475,7 @@ For more information, see README.md
         default=None,
         metavar="SPEED",
         help=f"Ball speed in pixels/frame (default: {Config().ball_speed})\n"
-             "Higher values make the game faster and more challenging",
+        "Higher values make the game faster and more challenging",
     )
     parser.add_argument(
         "--fps",
@@ -460,15 +483,15 @@ For more information, see README.md
         default=None,
         metavar="FPS",
         help=f"Target frames per second in visual mode (default: {Config().fps})\n"
-             "Use 0 for unlimited FPS (max speed)",
+        "Use 0 for unlimited FPS (max speed)",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug mode in visual mode\n"
-             "Shows: state overlay, reward graphs, trajectory prediction\n"
-             "Keyboard: D (debug), T (trajectory), P (graphs), G (grid)\n"
-             "          1-4 (speed), SPACE (pause), R (reset), S (save)",
+        "Shows: state overlay, reward graphs, trajectory prediction\n"
+        "Keyboard: D (debug), T (trajectory), P (graphs), G (grid)\n"
+        "          1-4 (speed), SPACE (pause), R (reset), S (save)",
     )
     parser.add_argument(
         "--save-dir",
@@ -476,8 +499,8 @@ For more information, see README.md
         default=None,
         metavar="DIR",
         help="Directory to save trained agents (optional)\n"
-             "Agents are saved at regular intervals during training\n"
-             "In visual mode, press 'S' to save manually",
+        "Agents are saved at regular intervals during training\n"
+        "In visual mode, press 'S' to save manually",
     )
     parser.add_argument(
         "--episodes",
@@ -485,8 +508,8 @@ For more information, see README.md
         default=100,
         metavar="N",
         help="Number of episodes for headless/benchmark training\n"
-             "(default: %(default)s)\n"
-             "Each episode is one complete point (serve until wall hit)",
+        "(default: %(default)s)\n"
+        "Each episode is one complete point (serve until wall hit)",
     )
 
     args = parser.parse_args()
@@ -497,9 +520,9 @@ For more information, see README.md
 
     config_kwargs = {}
     if args.speed is not None:
-        config_kwargs['ball_speed'] = args.speed
+        config_kwargs["ball_speed"] = args.speed
     if args.fps is not None:
-        config_kwargs['fps'] = args.fps
+        config_kwargs["fps"] = args.fps
 
     config = Config(**config_kwargs)
 
@@ -508,19 +531,25 @@ For more information, see README.md
 
     if args.mode == "headless":
         run_headless_training(
-            config, agent_a, agent_b,
+            config,
+            agent_a,
+            agent_b,
             num_episodes=args.episodes,
             save_dir=args.save_dir,
         )
     elif args.mode == "benchmark":
         run_benchmark(
-            config, agent_a, agent_b,
+            config,
+            agent_a,
+            agent_b,
             train_episodes=args.episodes,
             save_dir=args.save_dir,
         )
     else:
         run_visual_game(
-            config, agent_a, agent_b,
+            config,
+            agent_a,
+            agent_b,
             debug=args.debug,
             save_dir=args.save_dir,
         )

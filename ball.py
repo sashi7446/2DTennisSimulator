@@ -1,7 +1,7 @@
 """Ball logic for 2D Tennis Simulator."""
 
 import math
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from config import Config
@@ -54,9 +54,12 @@ class Ball:
             else:
                 # Player hit: must pass through OPPONENT's area
                 # Player A (id=0) must hit through Area B, Player B (id=1) must hit through Area A
-                if self.last_hit_by == 0 and field.is_in_area_b(self.x, self.y):
-                    self.is_in = True
-                elif self.last_hit_by == 1 and field.is_in_area_a(self.x, self.y):
+                if (
+                    self.last_hit_by == 0
+                    and field.is_in_area_b(self.x, self.y)
+                    or self.last_hit_by == 1
+                    and field.is_in_area_a(self.x, self.y)
+                ):
                     self.is_in = True
 
         # Check for wall collision
@@ -120,9 +123,7 @@ class Ball:
         self.last_hit_by = None
 
 
-def create_serve_ball(
-    field: Field, config: Config, direction: Optional[int] = None
-) -> Ball:
+def create_serve_ball(field: Field, config: Config, direction: Optional[int] = None) -> Ball:
     """
     Create a ball for serving from the center.
 
@@ -143,9 +144,7 @@ def create_serve_ball(
         direction = random.choice([-1, 1])
 
     # Random angle within serve_angle_range
-    angle_offset = random.uniform(
-        -config.serve_angle_range, config.serve_angle_range
-    )
+    angle_offset = random.uniform(-config.serve_angle_range, config.serve_angle_range)
 
     # Base angle: 0 for right, 180 for left
     base_angle = 0 if direction > 0 else 180

@@ -2,7 +2,7 @@
 
 import math
 import random
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from agents.base import Agent, AgentConfig
 
@@ -42,20 +42,23 @@ class PositionalAgent(Agent):
     """
 
     def __init__(self, config: Optional[AgentConfig] = None):
-        super().__init__(config or AgentConfig(
-            name="PositionalBot",
-            agent_type="positional",
-            version="1.0",
-            description="Tactical positioning AI with adaptive shot placement",
-            parameters={
-                "defensive_depth": 0.25,      # How far back to position (0.0 = net, 0.5 = center)
-                "court_coverage": 0.7,        # How aggressively to cover court width (0.0-1.0)
-                "prediction_time": 15,        # Frames to predict ball trajectory
-                "shot_variance": 20,          # Angle variance for shot placement (degrees)
-                "aggressive_threshold": 0.6,  # Distance ratio to switch to aggressive shots
-                "center_bias": 0.3,           # Bias towards center positioning (0.0-1.0)
-            }
-        ))
+        super().__init__(
+            config
+            or AgentConfig(
+                name="PositionalBot",
+                agent_type="positional",
+                version="1.0",
+                description="Tactical positioning AI with adaptive shot placement",
+                parameters={
+                    "defensive_depth": 0.25,  # How far back to position (0.0 = net, 0.5 = center)
+                    "court_coverage": 0.7,  # How aggressively to cover court width (0.0-1.0)
+                    "prediction_time": 15,  # Frames to predict ball trajectory
+                    "shot_variance": 20,  # Angle variance for shot placement (degrees)
+                    "aggressive_threshold": 0.6,  # Distance ratio to switch to aggressive shots
+                    "center_bias": 0.3,  # Bias towards center positioning (0.0-1.0)
+                },
+            )
+        )
         self.field_width = 800.0
         self.field_height = 400.0
 
@@ -127,9 +130,8 @@ class PositionalAgent(Agent):
         opp_y_offset = opp_y - (self.field_height / 2)
 
         # Determine shot strategy
-        is_aggressive = (
-            (self.player_id == 0 and my_field_pos < aggressive_threshold) or
-            (self.player_id == 1 and my_field_pos > (1 - aggressive_threshold))
+        is_aggressive = (self.player_id == 0 and my_field_pos < aggressive_threshold) or (
+            self.player_id == 1 and my_field_pos > (1 - aggressive_threshold)
         )
 
         if is_aggressive:
@@ -180,14 +182,10 @@ class PositionalAgent(Agent):
         ball_is_in = observation.get("ball_is_in", True)
 
         # Calculate optimal defensive position
-        target_x, target_y = self._calculate_defensive_position(
-            ball_x, ball_y, ball_vx, ball_vy
-        )
+        target_x, target_y = self._calculate_defensive_position(ball_x, ball_y, ball_vx, ball_vy)
 
         # If ball needs interception, adjust target to ball's predicted position
-        if ball_is_in and self._should_intercept_ball(
-            my_x, my_y, ball_x, ball_y, ball_vx, ball_vy
-        ):
+        if ball_is_in and self._should_intercept_ball(my_x, my_y, ball_x, ball_y, ball_vx, ball_vy):
             pred_time = self.config.parameters.get("prediction_time", 15)
             intercept_x = ball_x + ball_vx * pred_time
             intercept_y = ball_y + ball_vy * pred_time
@@ -209,8 +207,6 @@ class PositionalAgent(Agent):
         move_direction = _angle_to_direction(dx, dy)
 
         # Calculate shot angle
-        shot_angle = self._calculate_shot_angle(
-            my_x, my_y, opp_x, opp_y, ball_x, ball_y
-        )
+        shot_angle = self._calculate_shot_angle(my_x, my_y, opp_x, opp_y, ball_x, ball_y)
 
         return move_direction, shot_angle

@@ -1,7 +1,7 @@
 """Baseliner Agent - Defensive baseline player."""
 
 import math
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from agents.base import Agent, AgentConfig
 
@@ -29,15 +29,18 @@ class BaselinerAgent(Agent):
     """
 
     def __init__(self, config: Optional[AgentConfig] = None):
-        super().__init__(config or AgentConfig(
-            name="Baseliner",
-            agent_type="baseliner",
-            version="1.0",
-            description="Defensive baseliner - stays back and returns to home position",
-            parameters={
-                "home_x_ratio": 0.1,  # How far back (0.1 = 10% from baseline)
-            }
-        ))
+        super().__init__(
+            config
+            or AgentConfig(
+                name="Baseliner",
+                agent_type="baseliner",
+                version="1.0",
+                description="Defensive baseliner - stays back and returns to home position",
+                parameters={
+                    "home_x_ratio": 0.1,  # How far back (0.1 = 10% from baseline)
+                },
+            )
+        )
         self.field_width = 800.0
         self.field_height = 400.0
 

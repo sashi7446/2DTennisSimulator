@@ -1,7 +1,7 @@
 """Chase Agent - Simple ball-chasing AI."""
 
 import math
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from agents.base import Agent, AgentConfig
 
@@ -24,10 +24,16 @@ class ChaseAgent(Agent):
     """Simple agent that chases the ball and hits toward opponent."""
 
     def __init__(self, config: Optional[AgentConfig] = None):
-        super().__init__(config or AgentConfig(
-            name="ChaseBot", agent_type="chase", version="1.0",
-            description="Ball-chasing AI", parameters={"aggression": 1.0}
-        ))
+        super().__init__(
+            config
+            or AgentConfig(
+                name="ChaseBot",
+                agent_type="chase",
+                version="1.0",
+                description="Ball-chasing AI",
+                parameters={"aggression": 1.0},
+            )
+        )
         self.field_width, self.field_height = 800.0, 400.0
 
     def set_field_dimensions(self, width: float, height: float) -> None:
@@ -44,11 +50,16 @@ class SmartChaseAgent(ChaseAgent):
     """Chase agent with positioning awareness and ball prediction."""
 
     def __init__(self, config: Optional[AgentConfig] = None):
-        super().__init__(config or AgentConfig(
-            name="SmartChaseBot", agent_type="chase", version="2.0",
-            description="Chase AI with positioning",
-            parameters={"home_return_threshold": 200, "hit_angle_variance": 15}
-        ))
+        super().__init__(
+            config
+            or AgentConfig(
+                name="SmartChaseBot",
+                agent_type="chase",
+                version="2.0",
+                description="Chase AI with positioning",
+                parameters={"home_return_threshold": 200, "hit_angle_variance": 15},
+            )
+        )
 
     def act(self, observation: Dict[str, Any]) -> Tuple[int, float]:
         import random

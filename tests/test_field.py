@@ -1,10 +1,12 @@
 """Tests for Field class."""
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import unittest
+
 from config import Config
 from field import Field, Rectangle
 
@@ -58,8 +60,7 @@ class TestField(unittest.TestCase):
     def test_area_positions(self):
         """In-areas should be positioned correctly with gap between them."""
         # Area A should be to the left of center
-        self.assertLess(self.field.area_a.x + self.field.area_a.width,
-                        self.config.field_width / 2)
+        self.assertLess(self.field.area_a.x + self.field.area_a.width, self.config.field_width / 2)
         # Area B should be to the right of center
         self.assertGreater(self.field.area_b.x, self.config.field_width / 2)
 

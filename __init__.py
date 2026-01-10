@@ -5,11 +5,11 @@ A simulation environment for AI agents to play tennis.
 Designed to observe emergent tactical behaviors.
 """
 
-from config import Config, DEFAULT_CONFIG
-from field import Field, Rectangle
 from ball import Ball, create_serve_ball
-from player import Player, create_players, NUM_MOVEMENT_ACTIONS
+from config import DEFAULT_CONFIG, Config
+from field import Field, Rectangle
 from game import Game, GameState, PointResult, StepResult
+from player import NUM_MOVEMENT_ACTIONS, Player, create_players
 
 __version__ = "0.1.0"
 

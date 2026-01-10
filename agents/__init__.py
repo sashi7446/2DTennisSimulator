@@ -5,15 +5,16 @@ Provides a unified interface for different AI agents.
 """
 
 from agents.base import Agent, AgentConfig, load_agent
-from agents.chase import ChaseAgent, SmartChaseAgent
-from agents.random_agent import RandomAgent
 from agents.baseliner import BaselinerAgent
+from agents.chase import ChaseAgent, SmartChaseAgent
 from agents.positional import PositionalAgent
+from agents.random_agent import RandomAgent
 
 # NeuralAgent requires numpy
 try:
     from agents.neural import NeuralAgent
     from agents.transformer import TransformerAgent
+
     NEURAL_AVAILABLE = True
 except ImportError:
     NeuralAgent = None

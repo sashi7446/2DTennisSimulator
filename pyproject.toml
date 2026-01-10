@@ -23,6 +23,8 @@ dev = [
 [tool.ruff]
 target-version = "py39"
 line-length = 100
+
+[tool.ruff.lint]
 select = [
     "E",      # pycodestyle errors
     "W",      # pycodestyle warnings
@@ -36,15 +38,21 @@ select = [
 ignore = [
     "E501",   # line too long (handled by black)
     "B008",   # do not perform function calls in argument defaults
+    "B027",   # empty method in abstract base class without abstract decorator
+    "B904",   # allow raise without from in except
     "B905",   # zip without strict parameter
+    "SIM102", # nested if can be combined (sometimes less readable)
     "SIM108", # use ternary operator (can reduce readability)
+    "UP006",  # use dict/list/tuple instead of Dict/List/Tuple (Python 3.9 compat)
+    "UP035",  # deprecated typing imports (Python 3.9 compat)
+    "UP045",  # use X | None instead of Optional[X] (Python 3.9 compat)
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B", "SIM"]
 "__init__.py" = ["F401"]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["agents"]
 
 [tool.black]

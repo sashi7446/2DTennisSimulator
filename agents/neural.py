@@ -1,9 +1,9 @@
 """Neural Network Agent with Policy Gradient Learning."""
 
 import pickle
-from typing import Dict, Any, Tuple, Optional, List
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -16,9 +16,14 @@ class NeuralAgentConfig(AgentConfig):
     agent_type: str = "neural"
     version: str = "1.0"
     description: str = "Neural network agent with policy gradient"
-    parameters: Dict[str, Any] = field(default_factory=lambda: {
-        "hidden_size": 64, "learning_rate": 0.001, "gamma": 0.99, "entropy_coef": 0.01
-    })
+    parameters: Dict[str, Any] = field(
+        default_factory=lambda: {
+            "hidden_size": 64,
+            "learning_rate": 0.001,
+            "gamma": 0.99,
+            "entropy_coef": 0.01,
+        }
+    )
 
 
 class NeuralAgent(Agent):
@@ -47,6 +52,7 @@ class NeuralAgent(Agent):
 
     def _init_weights(self) -> None:
         """Xavier initialization for network weights."""
+
         def xavier(fan_in, fan_out):
             return np.random.randn(fan_in, fan_out) * np.sqrt(2.0 / fan_in)
 
@@ -63,19 +69,31 @@ class NeuralAgent(Agent):
         """Convert observation to normalized feature vector from player's perspective."""
         o = observation
         is_a = self.player_id == 0
-        my_x, my_y = (o["player_a_x"], o["player_a_y"]) if is_a else (o["player_b_x"], o["player_b_y"])
-        opp_x, opp_y = (o["player_b_x"], o["player_b_y"]) if is_a else (o["player_a_x"], o["player_a_y"])
+        my_x, my_y = (
+            (o["player_a_x"], o["player_a_y"]) if is_a else (o["player_b_x"], o["player_b_y"])
+        )
+        opp_x, opp_y = (
+            (o["player_b_x"], o["player_b_y"]) if is_a else (o["player_a_x"], o["player_a_y"])
+        )
         my_score = o["score_a" if is_a else "score_b"]
         opp_score = o["score_b" if is_a else "score_a"]
 
-        return np.array([
-            o["ball_x"] / self.field_width - 0.5, o["ball_y"] / self.field_height - 0.5,
-            o["ball_vx"] / 10.0, o["ball_vy"] / 10.0,
-            my_x / self.field_width - 0.5, my_y / self.field_height - 0.5,
-            opp_x / self.field_width - 0.5, opp_y / self.field_height - 0.5,
-            1.0 if o["ball_is_in"] else 0.0,
-            my_score / 11.0, opp_score / 11.0,
-        ], dtype=np.float32)
+        return np.array(
+            [
+                o["ball_x"] / self.field_width - 0.5,
+                o["ball_y"] / self.field_height - 0.5,
+                o["ball_vx"] / 10.0,
+                o["ball_vy"] / 10.0,
+                my_x / self.field_width - 0.5,
+                my_y / self.field_height - 0.5,
+                opp_x / self.field_width - 0.5,
+                opp_y / self.field_height - 0.5,
+                1.0 if o["ball_is_in"] else 0.0,
+                my_score / 11.0,
+                opp_score / 11.0,
+            ],
+            dtype=np.float32,
+        )
 
     def _relu(self, x: np.ndarray) -> np.ndarray:
         return np.maximum(0, x)
@@ -92,7 +110,7 @@ class NeuralAgent(Agent):
         move_probs = self._softmax(hidden @ self.W_move + self.b_move)
 
         angle_params = (hidden @ self.W_angle + self.b_angle).copy()
-        
+
         # 【ガードレール撤去】player_idによる向きの固定（base_angle）を廃止
         # 【tanhの悪魔を退治】tanhを通さず、-180〜180度の全方位をNNに直接制御させる
         angle_params[0] = angle_params[0] * 180.0
@@ -112,7 +130,11 @@ class NeuralAgent(Agent):
 
         # Log probability for learning
         move_log_prob = np.log(move_probs[move_action] + 1e-10)
-        angle_log_prob = -0.5 * ((hit_angle - angle_mean) / angle_std) ** 2 - np.log(angle_std) - 0.5 * np.log(2 * np.pi)
+        angle_log_prob = (
+            -0.5 * ((hit_angle - angle_mean) / angle_std) ** 2
+            - np.log(angle_std)
+            - 0.5 * np.log(2 * np.pi)
+        )
 
         self.states.append(features)
         self.actions.append((move_action, hit_angle))
@@ -148,7 +170,7 @@ class NeuralAgent(Agent):
             hidden = np.tanh(features @ self.W1 + self.b1)
             move_probs = self._softmax(hidden @ self.W_move + self.b_move)
             angle_params_raw = hidden @ self.W_angle + self.b_angle
-            
+
             # 【実験設定】学習ターゲットも360度全方位で計算
             angle_mean = angle_params_raw[0] * 180.0
             angle_log_std = np.clip(angle_params_raw[1], -1, 1)
@@ -158,20 +180,28 @@ class NeuralAgent(Agent):
 
             # Movement gradient
             move_grad = np.zeros(self.move_output_size)
-            move_grad[move_action] = (1.0 - move_probs[move_action]) * advantage * self.learning_rate
+            move_grad[move_action] = (
+                (1.0 - move_probs[move_action]) * advantage * self.learning_rate
+            )
             self.W_move += np.clip(np.outer(hidden, move_grad), -1, 1)
             self.b_move += np.clip(move_grad, -1, 1)
 
             # Angle gradient
             angle_std = np.exp(angle_log_std) + 0.1
             angle_diff = np.clip(hit_angle - angle_mean, -180, 180)
-            
+
             # 【tanh退治】tanhを使わないので、勾配の傾きは常に 1.0
             tanh_grad = 1.0
-            angle_grad = np.array([
-                (angle_diff / angle_std**2) * advantage * self.learning_rate * 180.0 * tanh_grad,
-                ((angle_diff / angle_std)**2 - 1) * advantage * self.learning_rate
-            ])
+            angle_grad = np.array(
+                [
+                    (angle_diff / angle_std**2)
+                    * advantage
+                    * self.learning_rate
+                    * 180.0
+                    * tanh_grad,
+                    ((angle_diff / angle_std) ** 2 - 1) * advantage * self.learning_rate,
+                ]
+            )
             angle_grad = np.clip(angle_grad, -1, 1)
             self.W_angle += np.clip(np.outer(hidden, angle_grad), -1, 1)
             self.b_angle += angle_grad
@@ -193,13 +223,22 @@ class NeuralAgent(Agent):
 
     def _save_weights(self, directory: Path) -> None:
         with open(directory / "weights.pkl", "wb") as f:
-            pickle.dump({
-                "W1": self.W1, "b1": self.b1, "W_move": self.W_move, "b_move": self.b_move,
-                "W_angle": self.W_angle, "b_angle": self.b_angle,
-                "W_value": self.W_value, "b_value": self.b_value,
-                "episode_count": self.episode_count, "total_updates": self.total_updates,
-                "avg_reward_history": self.avg_reward_history,
-            }, f)
+            pickle.dump(
+                {
+                    "W1": self.W1,
+                    "b1": self.b1,
+                    "W_move": self.W_move,
+                    "b_move": self.b_move,
+                    "W_angle": self.W_angle,
+                    "b_angle": self.b_angle,
+                    "W_value": self.W_value,
+                    "b_value": self.b_value,
+                    "episode_count": self.episode_count,
+                    "total_updates": self.total_updates,
+                    "avg_reward_history": self.avg_reward_history,
+                },
+                f,
+            )
 
     def _load_weights(self, directory: Path) -> None:
         path = directory / "weights.pkl"
@@ -214,10 +253,14 @@ class NeuralAgent(Agent):
 
     def get_info(self) -> Dict[str, Any]:
         info = super().get_info()
-        info.update({
-            "strategy": "Policy gradient", "episodes_trained": self.episode_count,
-            "total_updates": self.total_updates, "hidden_size": self.hidden_size,
-        })
+        info.update(
+            {
+                "strategy": "Policy gradient",
+                "episodes_trained": self.episode_count,
+                "total_updates": self.total_updates,
+                "hidden_size": self.hidden_size,
+            }
+        )
         if self.avg_reward_history:
             info["recent_avg_reward"] = np.mean(self.avg_reward_history[-10:])
         return info

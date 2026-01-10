@@ -1,13 +1,14 @@
 """Statistics tracking for 2D Tennis Simulator."""
 
-from dataclasses import dataclass, field
-from typing import List, Deque, Optional
 from collections import deque
+from dataclasses import dataclass
+from typing import Deque, List
 
 
 @dataclass
 class EpisodeStats:
     """Statistics for a single episode."""
+
     episode_num: int
     winner: int  # 0 or 1
     total_reward_a: float
@@ -71,8 +72,8 @@ class StatsTracker:
 
         # Trim history
         if len(self.episode_rewards_a) > self.max_history:
-            self.episode_rewards_a = self.episode_rewards_a[-self.max_history:]
-            self.episode_rewards_b = self.episode_rewards_b[-self.max_history:]
+            self.episode_rewards_a = self.episode_rewards_a[-self.max_history :]
+            self.episode_rewards_b = self.episode_rewards_b[-self.max_history :]
 
         # Reset for next episode
         self.current_reward_a = 0.0
@@ -87,7 +88,7 @@ class StatsTracker:
         result = []
         for i in range(len(rewards)):
             start = max(0, i - self.moving_avg_window + 1)
-            window = rewards[start:i + 1]
+            window = rewards[start : i + 1]
             result.append(sum(window) / len(window))
         return result
 
