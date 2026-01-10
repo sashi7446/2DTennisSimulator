@@ -147,9 +147,7 @@ class TestHeadlessTraining(unittest.TestCase):
         agent_b = create_agent("random", player_id=1, config=self.config)
 
         with patch("sys.stdout", new=StringIO()):
-            wins, _, _ = run_headless_training(
-                self.config, agent_a, agent_b, num_episodes=3
-            )
+            wins, _, _ = run_headless_training(self.config, agent_a, agent_b, num_episodes=3)
 
         self.assertEqual(wins[0] + wins[1], 3)
 
@@ -186,9 +184,7 @@ class TestHeadlessTraining(unittest.TestCase):
         agent_b = create_agent("chase", player_id=1, config=self.config)
 
         with patch("sys.stdout", new=StringIO()):
-            wins, _, _ = run_headless_training(
-                self.config, agent_a, agent_b, num_episodes=3
-            )
+            wins, _, _ = run_headless_training(self.config, agent_a, agent_b, num_episodes=3)
 
         self.assertEqual(wins[0] + wins[1], 3)
 
@@ -226,8 +222,6 @@ class TestCLIArgParsing(unittest.TestCase):
 
     def test_default_arguments(self):
         """Test default argument values."""
-        import argparse
-
         from main import main
 
         # Test that main creates default config with default arguments
@@ -257,9 +251,7 @@ class TestCLIArgParsing(unittest.TestCase):
         agent_b = create_agent("chase", player_id=1, config=config)
 
         with patch("sys.stdout", new=StringIO()):
-            wins, _, _ = run_headless_training(
-                config, agent_a, agent_b, num_episodes=10
-            )
+            wins, _, _ = run_headless_training(config, agent_a, agent_b, num_episodes=10)
 
         self.assertEqual(wins[0] + wins[1], 10)
 
@@ -283,7 +275,7 @@ class TestAgentSaveLoad(unittest.TestCase):
 
     def test_save_and_load_preserves_agent_type(self):
         """Test that save/load preserves agent configuration."""
-        from agents import ChaseAgent, RandomAgent
+        from agents import RandomAgent
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create and save a random agent (has distinct agent_type)
@@ -348,9 +340,7 @@ class TestAgentSaveLoad(unittest.TestCase):
             opponent = create_agent("random", player_id=1, config=self.config)
 
             with patch("sys.stdout", new=StringIO()):
-                wins, _, _ = run_headless_training(
-                    self.config, loaded, opponent, num_episodes=3
-                )
+                wins, _, _ = run_headless_training(self.config, loaded, opponent, num_episodes=3)
 
             self.assertEqual(wins[0] + wins[1], 3)
 
@@ -389,9 +379,7 @@ class TestErrorHandling(unittest.TestCase):
         agent_b = create_agent("chase", player_id=1, config=self.config)
 
         with patch("sys.stdout", new=StringIO()):
-            wins, _, _ = run_headless_training(
-                self.config, agent_a, agent_b, num_episodes=0
-            )
+            wins, _, _ = run_headless_training(self.config, agent_a, agent_b, num_episodes=0)
 
         self.assertEqual(wins, [0, 0])
 
