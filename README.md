@@ -1,269 +1,283 @@
 # 2D Tennis Simulator
 
-A simulator where AI agents compete and learn from each other in a simplified 2D tennis environment. Watch as basic tactics like "returning to home position" emerge naturally through reinforcement learning.
+AIエージェント同士が対戦しながら学習していく過程を観察するシミュレーター。
+「ホームポジションに戻る」などの基本戦術が強化学習によって自然発生するか、神視点で楽しむことを目的としています。
 
-**[日本語版 README はこちら](README_ja.md)**
+**[English README](README_en.md)**
 
-## Features
+## 特徴
 
-- Real-time AI vs AI matches with visualization
-- Policy Gradient (REINFORCE) learning agents
-- Live reward graphs and debug overlays
-- Agent save/load functionality
-- Multiple agent types (rule-based and learning)
-- Gymnasium-compatible environment for RL research
+- AI vs AI のリアルタイム対戦観戦
+- Policy Gradient（REINFORCE）による学習エージェント
+- 学習過程をグラフで可視化（デバッグモード）
+- エージェントの保存・読み込み機能
+- 複数のエージェントタイプ（ルールベース/学習型）
 
-## Installation
+## インストール
 
 ```bash
-# Clone the repository
-git clone https://github.com/sashi7446/2DTennisSimulator.git
-cd 2DTennisSimulator
-
-# Install dependencies
 pip install pygame numpy
-
-# For development (includes testing tools)
-pip install -r requirements-dev.txt
 ```
 
-## Quick Start
+## クイックスタート
 
 ```bash
-# Watch AI agents compete
+# AI同士の対戦を観戦
 python main.py
 
-# Train a learning agent vs rule-based AI (with debug display)
+# 学習エージェント vs ルールベースAI（デバッグ表示付き）
 python main.py --agent-a neural --agent-b chase --debug
 
-# List available agent types
+# 利用可能なエージェント一覧
 python main.py --mode list
 ```
 
-## Agent Types
+## エージェントタイプ
 
-| Type | Description |
-|------|-------------|
-| `chase` | Simple ball-chasing AI (default) |
-| `smart` | Improved chase with better positioning |
-| `random` | Random actions (baseline comparison) |
-| `neural` | Policy Gradient neural network agent |
-| `transformer` | Advanced Transformer-based model |
-| `baseliner` | Defensive baseline strategy |
-| `positional` | Position-aware tactical agent |
+| タイプ | 説明 |
+|--------|------|
+| `chase` | ボールを追いかけるシンプルなAI（デフォルト） |
+| `smart` | 位置取りを考慮した改良版チェイスAI |
+| `random` | ランダム行動（ベースライン比較用） |
+| `neural` | Policy Gradientで学習するニューラルネットワークAI |
+| `transformer` | Attention機構を用いた高度なモデル（Transformer） |
 
-## Usage
+## 使い方
 
-### Visual Mode (Watch Games)
+### 対戦観戦モード
 
 ```bash
-# Basic match (chase vs chase)
+# 基本（chase vs chase）
 python main.py
 
-# Specify agents
+# エージェント指定
 python main.py --agent-a neural --agent-b smart
 
-# Debug mode (shows reward graphs, state info)
+# デバッグモード（報酬グラフ表示）
 python main.py --agent-a neural --agent-b chase --debug
 
-# Adjust ball speed and game parameters
-python main.py --speed 7.0
+# ボール速度・勝利ポイント変更
+python main.py --speed 7.0 --points 21
 ```
 
-### Keyboard Controls
+### キー操作
 
-| Key | Action |
-|-----|--------|
-| `D` | Toggle debug display |
-| `S` | Save agents (when --save-dir specified) |
-| `R` | Reset game |
-| `1-4` | Speed control (1x/2x/4x/Max) |
-| `SPACE` | Pause game |
-| `N` | Step forward (when paused) |
-| `ESC` | Quit |
+| キー | 動作 |
+|------|------|
+| `D` | デバッグ表示の切り替え |
+| `S` | エージェントを保存（--save-dir指定時） |
+| `R` | ゲームリセット |
+| `ESC` | 終了 |
 
-### Headless Training Mode
+### ヘッドレス学習モード
 
-Fast training without graphics:
+高速学習用（描画なし）：
 
 ```bash
-# Train for 100 episodes
-python main.py --mode headless --agent-a neural --agent-b chase --episodes 100
+# 100エピソード学習
+python main.py --mode headless --agent-a neural --agent-b neural --episodes 100
 
-# Train and save agents periodically
+# エージェントを保存しながら学習
 python main.py --mode headless --agent-a neural --agent-b chase --episodes 500 --save-dir saved_agents
 ```
 
-### Benchmark Mode
-
-Train headless, then visualize the trained agents:
+### エージェントの保存と読み込み
 
 ```bash
-python main.py --mode benchmark --agent-a neural --agent-b smart --episodes 300
-```
-
-### Save and Load Agents
-
-```bash
-# Train and save
+# 学習しながら保存
 python main.py --agent-a neural --agent-b chase --save-dir my_agents --debug
 
-# Load saved agents
+# 保存したエージェントを読み込んで対戦
 python main.py --agent-a my_agents/agent_a_neural --agent-b chase
 
-# Match between saved agents
+# 保存済みエージェント同士の対戦
 python main.py --agent-a saved/champion_v1 --agent-b saved/champion_v2
 ```
 
-## Gymnasium Integration
+## デバッグモード
 
-Use as a standard Gymnasium environment for RL research:
+`--debug` フラグで以下の情報を表示：
+
+- ボールの位置・速度・インフラグ状態
+- 各プレイヤーの位置・状態
+- 報酬グラフ（4種類）：
+  - Player A 累積報酬（エピソード単位）
+  - Player A 5エピソード移動平均
+  - Player B 累積報酬（エピソード単位）
+  - Player B 5エピソード移動平均
+
+## Gymnasium環境
+
+強化学習ライブラリとの連携用：
 
 ```python
 from env import TennisEnv, SinglePlayerTennisEnv
 import numpy as np
 
-# Two-player environment
+# 2プレイヤー環境
 env = TennisEnv(render_mode="human")
 obs, info = env.reset()
 
-# Action format: (movement_direction 0-16, hit_angle)
+# アクション: (移動方向 0-16, 打つ角度)
 action = (0, np.array([45.0]))
 obs, reward, terminated, truncated, info = env.step(action)
 
-# Single-player environment (opponent is AI-controlled)
+# シングルプレイヤー環境（相手は自動AI）
 env = SinglePlayerTennisEnv(opponent_policy="chase")
-obs, info = env.reset()
-
-# Action format for single player: numpy array with [movement, hit_angle]
-action = np.array([8, 45.0])  # movement 8 = stay, 45 degree hit angle
-obs, reward, terminated, truncated, info = env.step(action)
 ```
 
-## Game Rules
+## ゲームルール
 
-### Field
-- Rectangular playing field enclosed by walls
-- Two "in areas" in the center (3:2 ratio with gap between)
+### フィールド
+- 壁で囲まれた長方形のフィールド
+- 中央に2つの「インエリア」（3:2比率、間に隙間）
 
-### In-Flag System
-- Ball passes through in-area → In-flag ON
-- Player hits ball → In-flag resets to OFF
+### インフラグシステム
+- ボールがインエリアを通過 → インフラグON
+- プレイヤーが打ち返す → インフラグOFFにリセット
 
-### Scoring
-When ball reaches a wall:
-- In-flag ON → Hitter **scores** a point
-- In-flag OFF → Hitter **loses** a point (out)
+### ポイント判定
+ボールが壁に到達した時：
+- インフラグON → 打った側の**得点**
+- インフラグOFF → 打った側の**失点**（アウト）
 
-### Hit Conditions
-A player can only hit when:
-1. Ball is within reach distance
-2. In-flag is ON
+### 打ち返し条件
+- ボールがリーチ距離内にある
+- インフラグがONである
 
-## Configuration
+両方を満たす場合のみ打ち返し可能。
 
-Adjust game parameters in `config.py`:
+## 設定パラメータ
+
+`config.py` で調整可能：
 
 ```python
 Config(
-    # Field dimensions
+    # フィールド
     field_width=800,
     field_height=400,
 
-    # In-area settings
+    # インエリア
     area_width=150,
     area_height=100,
     area_gap=100,
 
-    # Ball physics
+    # ボール
     ball_speed=5.0,
     serve_angle_range=15.0,
 
-    # Player attributes
+    # プレイヤー
     player_speed=3.0,
     reach_distance=30.0,
 
-    # Reward shaping
+    # 報酬（詳細は下記参照）
     reward_point_win=1.0,
     reward_point_lose=-1.0,
     reward_rally=0.1,
+    reward_in_area=0.05,
+    reward_step=0.0,
 )
 ```
 
-## Project Structure
+## 報酬トリガー
+
+強化学習エージェントに与える報酬は、5種類のトリガーで発生します：
+
+| トリガー | パラメータ | デフォルト | 発生タイミング |
+|----------|------------|------------|----------------|
+| ヒット時 | `reward_rally` | `0.1` | ボールを打ち返した時 |
+| イン時 | `reward_in_area` | `0.05` | 打ったボールがインエリアを通過した時 |
+| ポイント獲得時 | `reward_point_win` | `1.0` | ポイントを獲得した時 |
+| ポイント喪失時 | `reward_point_lose` | `-1.0` | ポイントを失った時 |
+| 時間経過 | `reward_step` | `0.0` | 毎ステップ（両プレイヤーに適用） |
+
+### 報酬設計の例
+
+```python
+# デフォルト: スパース報酬（ポイント獲得/喪失のみ重視）
+Config()
+
+# 早くゲームを終わらせるよう促す設定
+Config(reward_step=-0.001)
+
+# ラリーを重視する設定
+Config(reward_rally=0.5, reward_in_area=0.2)
+
+# 純粋なスパース報酬（ポイントのみ）
+Config(reward_rally=0.0, reward_in_area=0.0, reward_step=0.0)
+```
+
+## ファイル構成
 
 ```
-├── main.py          # CLI entry point
-├── config.py        # Game configuration
-├── field.py         # Field and in-areas
-├── ball.py          # Ball physics and in-flag
-├── player.py        # Player movement and hitting
-├── game.py          # Core game logic
-├── renderer.py      # Pygame rendering (with debug overlays)
-├── env.py           # Gymnasium environments
-├── debug.py         # Debug logging and validation
-├── agents/          # Agent implementations
+├── main.py          # エントリーポイント（CLI）
+├── config.py        # 設定パラメータ
+├── field.py         # フィールドとインエリア
+├── ball.py          # ボールの挙動とインフラグ
+├── player.py        # プレイヤーの移動と打ち返し
+├── game.py          # ゲームロジック
+├── renderer.py      # Pygame描画（デバッグオーバーレイ含む）
+├── env.py           # Gymnasium環境
+├── debug.py         # デバッグログ・バリデーション
+├── agents/          # エージェントシステム
 │   ├── __init__.py
-│   ├── base.py      # Base class (save/load)
+│   ├── base.py      # 基底クラス（save/load）
 │   ├── chase.py     # ChaseAgent, SmartChaseAgent
 │   ├── random_agent.py  # RandomAgent
-│   ├── neural.py    # NeuralAgent (Policy Gradient)
-│   ├── transformer.py   # TransformerAgent
-│   ├── baseliner.py # BaselinerAgent
-│   └── positional.py    # PositionalAgent
-└── tests/           # Unit tests (200+ tests)
+│   └── neural.py    # NeuralAgent（Policy Gradient）
+└── tests/           # ユニットテスト（96テスト）
 ```
 
-## Running Tests
+## テスト
 
 ```bash
-# Run all tests
-python run_tests.py
-
-# Or using unittest directly
 python -m unittest discover tests/ -v
 ```
 
-## Creating Custom Agents
+## 新しいエージェントの作成手順 (Cheat Sheet)
 
-Extend the `Agent` base class to create your own AI:
+新しいAIを追加してシミュレーターで動かすための最短ステップです。
+
+### 1. `agents/new_agent.py` を作成
+`agents/base.py` の `Agent` クラスを継承して実装します。
 
 ```python
 from agents.base import Agent
 
-class MyAgent(Agent):
+class MyNewAgent(Agent):
     def act(self, observation):
-        # observation is a dict with game state
-        # Return (movement_direction, hit_angle)
-        # movement: 0-15 (22.5° increments), 16 (stay)
-        # hit_angle: 0-360 degrees (float)
+        # observation（辞書型）を受け取り、(移動方向, 打球角度)を返す
+        # 移動方向: 0-15 (22.5度刻み), 16 (静止)
+        # 打球角度: 0-360度 (実数値)
         return 16, 0.0
 
     def learn(self, reward, done):
-        # Called after each step with reward
+        # 報酬を受け取って学習するロジック（任意）
         pass
 ```
 
-Register in `agents/__init__.py` and add to `create_agent()` in `main.py`.
+### 2. `agents/__init__.py` に登録
+```python
+from agents.new_agent import MyNewAgent
+# __all__ への追加も忘れずに
+```
 
-## Debug Mode Features
+### 3. `main.py` の追加
+`create_agent` 関数内に選択肢を追加します。
 
-Enable with `--debug` flag:
+```python
+# main.py の create_agent 内
+elif agent_type == "my_new":
+    agent = MyNewAgent()
+```
 
-- Ball position, velocity, and in-flag state
-- Player positions and states
-- Reward graphs (4 types):
-  - Player A cumulative rewards (per episode)
-  - Player A 5-episode moving average
-  - Player B cumulative rewards (per episode)
-  - Player B 5-episode moving average
-- Trajectory prediction overlay
-- Grid overlay for positioning
+### 4. 実行
+```bash
+python main.py --agent-a my_new --agent-b chase
+```
 
-## License
+---
+
+## ライセンス
 
 MIT
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.

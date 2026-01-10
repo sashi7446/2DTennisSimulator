@@ -119,6 +119,10 @@ class Game:
         rewards = [0.0, 0.0]
         point_result = None
 
+        # Time-based reward (applied every step)
+        rewards[0] += self.config.reward_step
+        rewards[1] += self.config.reward_step
+
         if self.ball:
             # Try hits
             if self.player_a.can_hit(self.ball):
