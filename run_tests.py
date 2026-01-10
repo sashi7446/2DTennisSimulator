@@ -5,9 +5,9 @@ Test runner for 2D Tennis Simulator.
 Runs all tests and provides a summary of what's working and what's not.
 """
 
+import os
 import sys
 import unittest
-import os
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -17,7 +17,7 @@ def run_tests_with_details():
     """Run all tests and show detailed results."""
     # Discover all tests
     loader = unittest.TestLoader()
-    suite = loader.discover('tests', pattern='test_*.py')
+    suite = loader.discover("tests", pattern="test_*.py")
 
     # Run with verbosity
     runner = unittest.TextTestRunner(verbosity=2)
@@ -45,7 +45,7 @@ def run_tests_with_details():
         for test, traceback in result.failures:
             print(f"\n✗ {test}")
             # Extract just the assertion error
-            lines = traceback.strip().split('\n')
+            lines = traceback.strip().split("\n")
             for line in lines[-3:]:
                 print(f"  {line}")
 
@@ -55,7 +55,7 @@ def run_tests_with_details():
         print("-" * 70)
         for test, traceback in result.errors:
             print(f"\n! {test}")
-            lines = traceback.strip().split('\n')
+            lines = traceback.strip().split("\n")
             for line in lines[-3:]:
                 print(f"  {line}")
 
@@ -78,7 +78,7 @@ def run_single_component(component_name):
 
     loader = unittest.TestLoader()
     try:
-        suite = loader.loadTestsFromName(f'tests.test_{component_name}')
+        suite = loader.loadTestsFromName(f"tests.test_{component_name}")
         runner = unittest.TextTestRunner(verbosity=2)
         result = runner.run(suite)
         return result.wasSuccessful()

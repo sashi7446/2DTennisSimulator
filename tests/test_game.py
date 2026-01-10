@@ -1,12 +1,14 @@
 """Tests for Game class."""
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import unittest
+
 from config import Config
-from game import Game, GameState, PointResult, StepResult
+from game import Game, GameState, StepResult
 
 
 class TestGameInitialization(unittest.TestCase):
@@ -315,10 +317,20 @@ class TestGameObservation(unittest.TestCase):
         obs = game.get_observation()
 
         required_keys = [
-            "ball_x", "ball_y", "ball_vx", "ball_vy", "ball_is_in",
-            "player_a_x", "player_a_y", "player_b_x", "player_b_y",
-            "score_a", "score_b", "rally_count",
-            "field_width", "field_height",
+            "ball_x",
+            "ball_y",
+            "ball_vx",
+            "ball_vy",
+            "ball_is_in",
+            "player_a_x",
+            "player_a_y",
+            "player_b_x",
+            "player_b_y",
+            "score_a",
+            "score_b",
+            "rally_count",
+            "field_width",
+            "field_height",
         ]
         for key in required_keys:
             self.assertIn(key, obs)

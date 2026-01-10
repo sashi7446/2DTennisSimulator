@@ -6,9 +6,9 @@ what's working correctly and what's not.
 """
 
 import json
-from dataclasses import dataclass, asdict
-from typing import List, Optional, Dict, Any
+from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class EventType(Enum):
@@ -92,7 +92,7 @@ class DebugLogger:
 
         # Limit stored events
         if len(self.events) > self.max_events:
-            self.events = self.events[-self.max_events:]
+            self.events = self.events[-self.max_events :]
 
     def _print_event(self, event: DebugEvent):
         """Print an event to console."""

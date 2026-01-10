@@ -1,7 +1,8 @@
 """Field and in-area logic for 2D Tennis Simulator."""
 
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Optional, Tuple
+
 from config import Config
 
 
@@ -49,19 +50,27 @@ class Field:
 
     def check_wall_collision(self, x: float, y: float, radius: float = 0) -> Optional[str]:
         """Return wall name ('left', 'right', 'top', 'bottom') or None."""
-        if x - radius <= 0: return "left"
-        if x + radius >= self.config.field_width: return "right"
-        if y - radius <= 0: return "top"
-        if y + radius >= self.config.field_height: return "bottom"
+        if x - radius <= 0:
+            return "left"
+        if x + radius >= self.config.field_width:
+            return "right"
+        if y - radius <= 0:
+            return "top"
+        if y + radius >= self.config.field_height:
+            return "bottom"
         return None
 
     def clamp_position(self, x: float, y: float, radius: float = 0) -> Tuple[float, float]:
-        return (max(radius, min(x, self.config.field_width - radius)),
-                max(radius, min(y, self.config.field_height - radius)))
+        return (
+            max(radius, min(x, self.config.field_width - radius)),
+            max(radius, min(y, self.config.field_height - radius)),
+        )
 
     def get_player_start_positions(self) -> Tuple[Tuple[float, float], Tuple[float, float]]:
         """Returns ((player_a_x, y), (player_b_x, y))."""
         cy = self.config.field_height / 2
         area_b_right = self.area_b.x + self.area_b.width
-        return ((self.area_a.x / 2, cy),
-                (area_b_right + (self.config.field_width - area_b_right) / 2, cy))
+        return (
+            (self.area_a.x / 2, cy),
+            (area_b_right + (self.config.field_width - area_b_right) / 2, cy),
+        )

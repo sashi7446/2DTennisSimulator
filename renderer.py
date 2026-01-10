@@ -5,12 +5,14 @@ They do NOT control game flow or manage input.
 """
 
 from __future__ import annotations
-from typing import Optional, Tuple, List, Deque, Protocol, TYPE_CHECKING, Any
-from collections import deque
+
 import math
+from collections import deque
+from typing import TYPE_CHECKING, Any, Deque, Dict, List, Optional, Protocol, Tuple
 
 try:
     import pygame
+
     PYGAME_AVAILABLE = True
 except ImportError:
     PYGAME_AVAILABLE = False
@@ -31,6 +33,7 @@ GRAY, ORANGE, CYAN = (128, 128, 128), (255, 165, 0), (0, 255, 255)
 
 class Overlay(Protocol):
     """Protocol for debug overlay components."""
+
     def update(self, game: Game) -> None: ...
     def draw(self, screen: Any, config: Config, field_to_screen) -> None: ...
 
@@ -62,18 +65,29 @@ class GameRenderer:
 
     def _draw_field(self, game: Game) -> None:
         self.screen.fill(GRAY)
-        field_rect = pygame.Rect(self.padding, self.padding + self.ui_height,
-                                  self.config.field_width, self.config.field_height)
+        field_rect = pygame.Rect(
+            self.padding,
+            self.padding + self.ui_height,
+            self.config.field_width,
+            self.config.field_height,
+        )
         pygame.draw.rect(self.screen, GREEN, field_rect)
 
         for area in [game.field.area_a, game.field.area_b]:
-            rect = pygame.Rect(*self.field_to_screen(area.x, area.y), int(area.width), int(area.height))
+            rect = pygame.Rect(
+                *self.field_to_screen(area.x, area.y), int(area.width), int(area.height)
+            )
             pygame.draw.rect(self.screen, LIGHT_GREEN, rect)
             pygame.draw.rect(self.screen, WHITE, rect, 2)
 
         center_x = self.field_to_screen(self.config.field_width / 2, 0)[0]
-        pygame.draw.line(self.screen, WHITE, (center_x, self.padding + self.ui_height),
-                         (center_x, self.padding + self.ui_height + self.config.field_height), 1)
+        pygame.draw.line(
+            self.screen,
+            WHITE,
+            (center_x, self.padding + self.ui_height),
+            (center_x, self.padding + self.ui_height + self.config.field_height),
+            1,
+        )
         pygame.draw.rect(self.screen, WHITE, field_rect, 3)
 
     def _draw_ball(self, game: Game) -> None:
@@ -86,7 +100,7 @@ class GameRenderer:
     def _draw_players(self, game: Game) -> None:
         for player, color, reach_color in [
             (game.player_a, RED, (255, 150, 150)),
-            (game.player_b, BLUE, (150, 150, 255))
+            (game.player_b, BLUE, (150, 150, 255)),
         ]:
             pos = self.field_to_screen(player.x, player.y)
             pygame.draw.circle(self.screen, color, pos, int(player.radius))
@@ -95,14 +109,26 @@ class GameRenderer:
 
     def _draw_ui(self, game: Game, total_wins: Optional[Tuple[int, int]] = None) -> None:
         if total_wins:
-            score = self.font.render(f"Total Wins - A: {total_wins[0]}  B: {total_wins[1]}", True, WHITE)
+            score = self.font.render(
+                f"Total Wins - A: {total_wins[0]}  B: {total_wins[1]}", True, WHITE
+            )
         else:
-            score = self.font.render(f"Player A: {game.scores[0]}  -  Player B: {game.scores[1]}", True, WHITE)
+            score = self.font.render(
+                f"Player A: {game.scores[0]}  -  Player B: {game.scores[1]}", True, WHITE
+            )
         self.screen.blit(score, score.get_rect(center=(self.window_width // 2, 25)))
 
         is_in = game.ball and game.ball.is_in
-        self.screen.blit(self.small_font.render(f"Ball: {'IN' if is_in else 'OUT'}", True, YELLOW if is_in else GRAY), (10, 45))
-        self.screen.blit(self.small_font.render(f"Rally: {game.rally_count}", True, WHITE), (self.window_width - 100, 45))
+        self.screen.blit(
+            self.small_font.render(
+                f"Ball: {'IN' if is_in else 'OUT'}", True, YELLOW if is_in else GRAY
+            ),
+            (10, 45),
+        )
+        self.screen.blit(
+            self.small_font.render(f"Rally: {game.rally_count}", True, WHITE),
+            (self.window_width - 100, 45),
+        )
 
         if game.state == GameState.GAME_OVER:
             winner = "A" if game.scores[0] > game.scores[1] else "B"
@@ -140,25 +166,34 @@ class TrajectoryOverlay:
             if not (math.isnan(x) or math.isnan(y) or math.isinf(x) or math.isinf(y)):
                 self.trail.append((x, y, game.ball.is_in))
 
-    def draw(self, screen: "Surface", config: Config, field_to_screen) -> None:
+    def draw(self, screen: Surface, config: Config, field_to_screen) -> None:
         if len(self.trail) < 2:
             return
         trail = list(self.trail)
         for i in range(1, len(trail)):
             alpha = int(255 * i / len(trail))
             color = (alpha, alpha, 0) if trail[i][2] else (alpha // 2, alpha // 2, 0)
-            pygame.draw.line(screen, color,
-                             field_to_screen(trail[i-1][0], trail[i-1][1]),
-                             field_to_screen(trail[i][0], trail[i][1]), 2)
-            if trail[i][2] != trail[i-1][2]:
-                pygame.draw.circle(screen, ORANGE if trail[i][2] else RED,
-                                   field_to_screen(trail[i][0], trail[i][1]), 6, 2)
+            pygame.draw.line(
+                screen,
+                color,
+                field_to_screen(trail[i - 1][0], trail[i - 1][1]),
+                field_to_screen(trail[i][0], trail[i][1]),
+                2,
+            )
+            if trail[i][2] != trail[i - 1][2]:
+                pygame.draw.circle(
+                    screen,
+                    ORANGE if trail[i][2] else RED,
+                    field_to_screen(trail[i][0], trail[i][1]),
+                    6,
+                    2,
+                )
 
 
 class DistanceOverlay:
     """Draws distance lines between players and ball."""
 
-    def draw(self, screen: "Surface", game: Game, field_to_screen, debug_font) -> None:
+    def draw(self, screen: Surface, game: Game, field_to_screen, debug_font) -> None:
         if game.ball is None:
             return
         ball_pos = field_to_screen(game.ball.x, game.ball.y)
@@ -167,15 +202,18 @@ class DistanceOverlay:
             pygame.draw.line(screen, color, ppos, ball_pos, 1)
             can_hit = player.can_hit(game.ball)
             text = f"{player.distance_to_ball(game.ball):.1f}" + (" [HIT]" if can_hit else "")
-            screen.blit(debug_font.render(text, True, CYAN if can_hit else GRAY),
-                        ((ppos[0] + ball_pos[0]) // 2, (ppos[1] + ball_pos[1]) // 2))
+            screen.blit(
+                debug_font.render(text, True, CYAN if can_hit else GRAY),
+                ((ppos[0] + ball_pos[0]) // 2, (ppos[1] + ball_pos[1]) // 2),
+            )
 
 
 class StatePanelOverlay:
     """Draws game engine internal state (not visible to agents)."""
 
-    def draw(self, screen: "Surface", game: Game, frame_count: int,
-             x: int, y: int, debug_font) -> None:
+    def draw(
+        self, screen: Surface, game: Game, frame_count: int, x: int, y: int, debug_font
+    ) -> None:
         pw, ph = 160, 115
         surf = pygame.Surface((pw, ph))
         surf.set_alpha(200)
@@ -183,6 +221,7 @@ class StatePanelOverlay:
         screen.blit(surf, (x, y))
 
         cy = y + 5
+
         def line(t, c=WHITE):
             nonlocal cy
             screen.blit(debug_font.render(t, True, c), (x + 5, cy))
@@ -204,25 +243,60 @@ class RewardGraphOverlay:
     def __init__(self, max_points: int = 200):
         self.max_points = max_points
 
-    def draw(self, screen: "Surface", cumulative_a: List[float], cumulative_b: List[float],
-             moving_avg_a: List[float], moving_avg_b: List[float],
-             episode_count: int, x: int, y: int, debug_font) -> None:
+    def draw(
+        self,
+        screen: Surface,
+        cumulative_a: List[float],
+        cumulative_b: List[float],
+        moving_avg_a: List[float],
+        moving_avg_b: List[float],
+        episode_count: int,
+        x: int,
+        y: int,
+        debug_font,
+    ) -> None:
         gw, gh, m = 180, 80, 5
 
-        self._draw_graph(screen, x, y, gw, gh,
-                         cumulative_a[-self.max_points:], cumulative_b[-self.max_points:],
-                         "Cumulative (Episode)", debug_font)
-        self._draw_graph(screen, x + gw + m, y, gw, gh,
-                         moving_avg_a, moving_avg_b,
-                         "Reward (20-ep MA)", debug_font)
+        self._draw_graph(
+            screen,
+            x,
+            y,
+            gw,
+            gh,
+            cumulative_a[-self.max_points :],
+            cumulative_b[-self.max_points :],
+            "Cumulative (Episode)",
+            debug_font,
+        )
+        self._draw_graph(
+            screen,
+            x + gw + m,
+            y,
+            gw,
+            gh,
+            moving_avg_a,
+            moving_avg_b,
+            "Reward (20-ep MA)",
+            debug_font,
+        )
 
         ly = y + gh + 5
         screen.blit(debug_font.render("■ Player A", True, RED), (x, ly))
         screen.blit(debug_font.render("■ Player B", True, BLUE), (x + 80, ly))
         screen.blit(debug_font.render(f"Episodes: {episode_count}", True, WHITE), (x + gw + m, ly))
 
-    def _draw_graph(self, screen, x, y, width, height,
-                    data_a: List[float], data_b: List[float], title: str, debug_font) -> None:
+    def _draw_graph(
+        self,
+        screen,
+        x,
+        y,
+        width,
+        height,
+        data_a: List[float],
+        data_b: List[float],
+        title: str,
+        debug_font,
+    ) -> None:
         surf = pygame.Surface((width, height))
         surf.set_alpha(200)
         surf.fill(BLACK)
@@ -232,7 +306,9 @@ class RewardGraphOverlay:
 
         gx, gy, gw, gh = x + 5, y + 18, width - 10, height - 23
         if len(data_a) < 2 and len(data_b) < 2:
-            screen.blit(debug_font.render("No data", True, GRAY), (x + width // 2 - 20, y + height // 2))
+            screen.blit(
+                debug_font.render("No data", True, GRAY), (x + width // 2 - 20, y + height // 2)
+            )
             return
 
         all_data = data_a + data_b
@@ -250,24 +326,33 @@ class RewardGraphOverlay:
         def draw_series(data, color):
             if len(data) < 2:
                 return
-            pts = [(gx + int(i / (len(data) - 1) * gw),
-                    max(gy, min(gy + gh, gy + gh - int((v - min_v) / rng * gh))))
-                   for i, v in enumerate(data)]
+            pts = [
+                (
+                    gx + int(i / (len(data) - 1) * gw),
+                    max(gy, min(gy + gh, gy + gh - int((v - min_v) / rng * gh))),
+                )
+                for i, v in enumerate(data)
+            ]
             pygame.draw.lines(screen, color, False, pts, 2)
 
         draw_series(data_a, RED)
         draw_series(data_b, BLUE)
         if data_a:
-            screen.blit(debug_font.render(f"A:{data_a[-1]:.2f}", True, RED), (x + width - 60, y + 2))
+            screen.blit(
+                debug_font.render(f"A:{data_a[-1]:.2f}", True, RED), (x + width - 60, y + 2)
+            )
         if data_b:
-            screen.blit(debug_font.render(f"B:{data_b[-1]:.2f}", True, BLUE), (x + width - 60, y + 12))
+            screen.blit(
+                debug_font.render(f"B:{data_b[-1]:.2f}", True, BLUE), (x + width - 60, y + 12)
+            )
 
 
 class ObservationOverlay:
     """Draws raw observation data passed to agents."""
 
-    def draw(self, screen: "Surface", obs: Optional[Dict[str, Any]],
-             x: int, y: int, debug_font) -> None:
+    def draw(
+        self, screen: Surface, obs: Optional[Dict[str, Any]], x: int, y: int, debug_font
+    ) -> None:
         if obs is None:
             return
         pw, ph = 200, 125
@@ -277,6 +362,7 @@ class ObservationOverlay:
         screen.blit(surf, (x, y))
 
         cy = y + 3
+
         def line(t, c=WHITE):
             nonlocal cy
             screen.blit(debug_font.render(t, True, c), (x + 5, cy))
@@ -291,15 +377,16 @@ class ObservationOverlay:
         line(f"score: {obs['score_a']}-{obs['score_b']} rally: {obs['rally_count']}")
         line(f"field: {obs['field_width']}x{obs['field_height']}")
 
-    def draw_minimap(self, screen: "Surface", obs: Optional[Dict[str, Any]],
-                     x: int, y: int, debug_font) -> None:
+    def draw_minimap(
+        self, screen: Surface, obs: Optional[Dict[str, Any]], x: int, y: int, debug_font
+    ) -> None:
         """Draw minimap visualization of obs data only."""
         if obs is None:
             return
 
         # Fixed scale: same for x and y to preserve aspect ratio
         scale = 0.2  # 1 obs unit = 0.2 pixels
-        fw, fh = obs['field_width'], obs['field_height']
+        fw, fh = obs["field_width"], obs["field_height"]
         mw, mh = int(fw * scale), int(fh * scale)
 
         # Background
@@ -320,13 +407,13 @@ class ObservationOverlay:
         pygame.draw.line(screen, GRAY, (x + mw // 2, my), (x + mw // 2, my + mh), 1)
 
         # Ball position
-        bx = x + int(obs['ball_x'] * scale)
-        by = my + int(obs['ball_y'] * scale)
-        ball_color = YELLOW if obs['ball_is_in'] else (100, 100, 0)
+        bx = x + int(obs["ball_x"] * scale)
+        by = my + int(obs["ball_y"] * scale)
+        ball_color = YELLOW if obs["ball_is_in"] else (100, 100, 0)
         pygame.draw.circle(screen, ball_color, (bx, by), 3)
 
         # Ball velocity vector
-        vx, vy = obs['ball_vx'], obs['ball_vy']
+        vx, vy = obs["ball_vx"], obs["ball_vy"]
         if abs(vx) > 0.1 or abs(vy) > 0.1:
             # Scale velocity for visibility (multiply by scale and a factor)
             arrow_scale = scale * 15
@@ -335,23 +422,28 @@ class ObservationOverlay:
             pygame.draw.line(screen, ball_color, (bx, by), (end_x, end_y), 1)
 
         # Player A
-        ax = x + int(obs['player_a_x'] * scale)
-        ay = my + int(obs['player_a_y'] * scale)
+        ax = x + int(obs["player_a_x"] * scale)
+        ay = my + int(obs["player_a_y"] * scale)
         pygame.draw.circle(screen, RED, (ax, ay), 4)
 
         # Player B
-        bpx = x + int(obs['player_b_x'] * scale)
-        bpy = my + int(obs['player_b_y'] * scale)
+        bpx = x + int(obs["player_b_x"] * scale)
+        bpy = my + int(obs["player_b_y"] * scale)
         pygame.draw.circle(screen, BLUE, (bpx, bpy), 4)
 
 
 class ActionOverlay:
     """Draws action data - both text panel and visual controller display."""
 
-    def draw_text(self, screen: "Surface",
-                  action_a: Optional[Tuple[int, float]],
-                  action_b: Optional[Tuple[int, float]],
-                  x: int, y: int, debug_font) -> None:
+    def draw_text(
+        self,
+        screen: Surface,
+        action_a: Optional[Tuple[int, float]],
+        action_b: Optional[Tuple[int, float]],
+        x: int,
+        y: int,
+        debug_font,
+    ) -> None:
         """Draw text-based action display for bottom panel."""
         pw, ph = 150, 60
         surf = pygame.Surface((pw, ph))
@@ -360,6 +452,7 @@ class ActionOverlay:
         screen.blit(surf, (x, y))
 
         cy = y + 3
+
         def line(t, c=WHITE):
             nonlocal cy
             screen.blit(debug_font.render(t, True, c), (x + 5, cy))
@@ -375,9 +468,16 @@ class ActionOverlay:
         else:
             line("B: None", GRAY)
 
-    def draw_controller(self, screen: "Surface", action: Optional[Tuple[int, float]],
-                        x: int, y: int, color: Tuple[int, int, int],
-                        label: str, debug_font) -> None:
+    def draw_controller(
+        self,
+        screen: Surface,
+        action: Optional[Tuple[int, float]],
+        x: int,
+        y: int,
+        color: Tuple[int, int, int],
+        label: str,
+        debug_font,
+    ) -> None:
         """Draw controller-style visual input display."""
         # Background
         pw, ph = 70, 120
@@ -455,9 +555,9 @@ class ActionOverlay:
 class RewardOverlay:
     """Draws raw reward values."""
 
-    def draw(self, screen: "Surface",
-             rewards: Optional[Tuple[float, float]],
-             x: int, y: int, debug_font) -> None:
+    def draw(
+        self, screen: Surface, rewards: Optional[Tuple[float, float]], x: int, y: int, debug_font
+    ) -> None:
         pw, ph = 140, 55
         surf = pygame.Surface((pw, ph))
         surf.set_alpha(200)
@@ -465,6 +565,7 @@ class RewardOverlay:
         screen.blit(surf, (x, y))
 
         cy = y + 3
+
         def line(t, c=WHITE):
             nonlocal cy
             screen.blit(debug_font.render(t, True, c), (x + 5, cy))
@@ -493,7 +594,9 @@ class DebugRenderer(GameRenderer):
         self.padding, self.ui_height = 50, 60
         self.debug_panel_height = 120  # Bottom panel for debug info
         self.window_width = self.config.field_width + 2 * self.padding
-        self.window_height = self.config.field_height + 2 * self.padding + self.ui_height + self.debug_panel_height
+        self.window_height = (
+            self.config.field_height + 2 * self.padding + self.ui_height + self.debug_panel_height
+        )
 
         pygame.init()
         self.screen = pygame.display.set_mode((self.window_width, self.window_height))
@@ -512,12 +615,18 @@ class DebugRenderer(GameRenderer):
         self.action_overlay = ActionOverlay()
         self.reward_overlay = RewardOverlay()
 
-    def render(self, game: Game, total_wins: Optional[Tuple[int, int]] = None,
-               stats=None, input_state=None, frame_count: int = 0,
-               actual_fps: float = 0.0,
-               obs: Optional[Dict[str, Any]] = None,
-               actions: Optional[Tuple[Tuple[int, float], Tuple[int, float]]] = None,
-               rewards: Optional[Tuple[float, float]] = None) -> None:
+    def render(
+        self,
+        game: Game,
+        total_wins: Optional[Tuple[int, int]] = None,
+        stats=None,
+        input_state=None,
+        frame_count: int = 0,
+        actual_fps: float = 0.0,
+        obs: Optional[Dict[str, Any]] = None,
+        actions: Optional[Tuple[Tuple[int, float], Tuple[int, float]]] = None,
+        rewards: Optional[Tuple[float, float]] = None,
+    ) -> None:
         """Render game with debug overlays.
 
         Args:
@@ -545,13 +654,25 @@ class DebugRenderer(GameRenderer):
         if actions:
             field_center_y = self.padding + self.ui_height + self.config.field_height // 2
             # Player A - left side
-            self.action_overlay.draw_controller(self.screen, actions[0],
-                                                self.padding - 10, field_center_y,
-                                                RED, "A", self.debug_font)
+            self.action_overlay.draw_controller(
+                self.screen,
+                actions[0],
+                self.padding - 10,
+                field_center_y,
+                RED,
+                "A",
+                self.debug_font,
+            )
             # Player B - right side
-            self.action_overlay.draw_controller(self.screen, actions[1],
-                                                self.window_width - self.padding + 10, field_center_y,
-                                                BLUE, "B", self.debug_font)
+            self.action_overlay.draw_controller(
+                self.screen,
+                actions[1],
+                self.window_width - self.padding + 10,
+                field_center_y,
+                BLUE,
+                "B",
+                self.debug_font,
+            )
 
         # Distance overlay
         if input_state and input_state.show_distances:
@@ -559,8 +680,14 @@ class DebugRenderer(GameRenderer):
 
         # State panel
         if input_state and input_state.show_state_panel:
-            self.state_panel.draw(self.screen, game, frame_count,
-                                  10, self.padding + self.ui_height + 10, self.debug_font)
+            self.state_panel.draw(
+                self.screen,
+                game,
+                frame_count,
+                10,
+                self.padding + self.ui_height + 10,
+                self.debug_font,
+            )
 
         # Event log
         if stats and stats.event_log:
@@ -575,25 +702,36 @@ class DebugRenderer(GameRenderer):
             gy = debug_panel_y
             self.reward_graph.draw(
                 self.screen,
-                stats.cumulative_rewards_a, stats.cumulative_rewards_b,
+                stats.cumulative_rewards_a,
+                stats.cumulative_rewards_b,
                 stats.get_moving_averages(stats.episode_rewards_a),
                 stats.get_moving_averages(stats.episode_rewards_b),
-                stats.episode_count, gx, gy, self.debug_font
+                stats.episode_count,
+                gx,
+                gy,
+                self.debug_font,
             )
 
         # Raw data overlays (bottom panel: obs, action, reward side by side)
         if input_state and input_state.show_state_panel:
             self.observation_overlay.draw(self.screen, obs, 380, debug_panel_y, self.debug_font)
-            self.action_overlay.draw_text(self.screen, actions[0] if actions else None,
-                                          actions[1] if actions else None,
-                                          590, debug_panel_y, self.debug_font)
+            self.action_overlay.draw_text(
+                self.screen,
+                actions[0] if actions else None,
+                actions[1] if actions else None,
+                590,
+                debug_panel_y,
+                self.debug_font,
+            )
             self.reward_overlay.draw(self.screen, rewards, 750, debug_panel_y, self.debug_font)
 
         # Obs minimap (top-right of field area)
         if input_state and input_state.show_state_panel:
             minimap_x = self.window_width - self.padding - 170
             minimap_y = self.padding + self.ui_height + 10
-            self.observation_overlay.draw_minimap(self.screen, obs, minimap_x, minimap_y, self.debug_font)
+            self.observation_overlay.draw_minimap(
+                self.screen, obs, minimap_x, minimap_y, self.debug_font
+            )
 
         # Controls help
         self._draw_controls_help()
@@ -608,7 +746,9 @@ class DebugRenderer(GameRenderer):
         # Paused indicator
         if input_state and input_state.paused:
             text = self.font.render("PAUSED", True, ORANGE)
-            self.screen.blit(text, text.get_rect(center=(self.window_width // 2, self.window_height // 2 - 50)))
+            self.screen.blit(
+                text, text.get_rect(center=(self.window_width // 2, self.window_height // 2 - 50))
+            )
 
         pygame.display.flip()
 
@@ -620,14 +760,25 @@ class DebugRenderer(GameRenderer):
         x, y = self.window_width - 200, self.padding + self.ui_height + 10
         for i, ev in enumerate(event_log):
             alpha = int(255 * (1 - i / len(event_log)))
-            self.screen.blit(self.debug_font.render(ev, True, (alpha, alpha, alpha)), (x, y + i * 14))
+            self.screen.blit(
+                self.debug_font.render(ev, True, (alpha, alpha, alpha)), (x, y + i * 14)
+            )
 
     def _draw_controls_help(self) -> None:
-        helps = ["Controls:", "1-4: Speed", "R: Reset", "F: FPS",
-                 "T/D/P/G: Overlays", "SPACE: Pause", "N: Step"]
+        helps = [
+            "Controls:",
+            "1-4: Speed",
+            "R: Reset",
+            "F: FPS",
+            "T/D/P/G: Overlays",
+            "SPACE: Pause",
+            "N: Step",
+        ]
         x, y = self.window_width - 120, self.window_height - 115
         for i, t in enumerate(helps):
-            self.screen.blit(self.debug_font.render(t, True, CYAN if i == 0 else GRAY), (x, y + i * 14))
+            self.screen.blit(
+                self.debug_font.render(t, True, CYAN if i == 0 else GRAY), (x, y + i * 14)
+            )
 
     def _draw_speed_indicator(self, input_state, actual_fps: float) -> None:
         """Draw speed level and FPS indicator."""
@@ -637,30 +788,48 @@ class DebugRenderer(GameRenderer):
 
         # Speed indicator (top-left area, below ball status)
         color = CYAN if speed_level == 0 else ORANGE if speed_level < 3 else RED
-        self.screen.blit(self.small_font.render(f"Speed: {speed_text}", True, color),
-                         (self.window_width // 2 - 50, 45))
+        self.screen.blit(
+            self.small_font.render(f"Speed: {speed_text}", True, color),
+            (self.window_width // 2 - 50, 45),
+        )
 
         # FPS display (if enabled)
         if input_state.show_fps:
             fps_color = GREEN if actual_fps >= 55 else ORANGE if actual_fps >= 30 else RED
-            self.screen.blit(self.small_font.render(f"FPS: {actual_fps:.0f}", True, fps_color),
-                             (self.window_width // 2 + 50, 45))
+            self.screen.blit(
+                self.small_font.render(f"FPS: {actual_fps:.0f}", True, fps_color),
+                (self.window_width // 2 + 50, 45),
+            )
 
     def _draw_ui(self, game: Game, total_wins: Optional[Tuple[int, int]] = None) -> None:
         if total_wins:
-            score = self.font.render(f"Total Wins - A: {total_wins[0]}  B: {total_wins[1]}", True, WHITE)
+            score = self.font.render(
+                f"Total Wins - A: {total_wins[0]}  B: {total_wins[1]}", True, WHITE
+            )
         else:
-            score = self.font.render(f"Player A: {game.scores[0]}  -  Player B: {game.scores[1]}", True, WHITE)
+            score = self.font.render(
+                f"Player A: {game.scores[0]}  -  Player B: {game.scores[1]}", True, WHITE
+            )
         self.screen.blit(score, score.get_rect(center=(self.window_width // 2, 25)))
 
         is_in = game.ball and game.ball.is_in
-        self.screen.blit(self.small_font.render(f"Ball: {'IN' if is_in else 'OUT'}", True, YELLOW if is_in else GRAY), (10, 45))
-        self.screen.blit(self.small_font.render(f"Rally: {game.rally_count}", True, WHITE), (self.window_width - 100, 45))
+        self.screen.blit(
+            self.small_font.render(
+                f"Ball: {'IN' if is_in else 'OUT'}", True, YELLOW if is_in else GRAY
+            ),
+            (10, 45),
+        )
+        self.screen.blit(
+            self.small_font.render(f"Rally: {game.rally_count}", True, WHITE),
+            (self.window_width - 100, 45),
+        )
 
         if game.state == GameState.GAME_OVER:
             winner = "A" if game.scores[0] > game.scores[1] else "B"
             text = self.font.render(f"Episode Over! Player {winner} wins!", True, WHITE)
-            self.screen.blit(text, text.get_rect(center=(self.window_width // 2, self.window_height - 30)))
+            self.screen.blit(
+                text, text.get_rect(center=(self.window_width // 2, self.window_height - 30))
+            )
 
 
 # Backward compatibility aliases
@@ -670,6 +839,7 @@ Renderer = GameRenderer
 def run_demo_game() -> None:
     """Demo game with random agents."""
     import random
+
     from input_handler import InputHandler
     from stats_tracker import StatsTracker
 
@@ -684,8 +854,10 @@ def run_demo_game() -> None:
         input_handler.process_events()
 
         if input_handler.should_step():
-            game.step((random.randint(0, 16), random.uniform(0, 360)),
-                      (random.randint(0, 16), random.uniform(0, 360)))
+            game.step(
+                (random.randint(0, 16), random.uniform(0, 360)),
+                (random.randint(0, 16), random.uniform(0, 360)),
+            )
             renderer.update(game)
             stats.next_frame()
             frame_count += 1
@@ -698,7 +870,9 @@ def run_demo_game() -> None:
             input_handler.process_events()
             if not input_handler.running:
                 break
-            renderer.render(game, stats=stats, input_state=input_handler.state, frame_count=frame_count)
+            renderer.render(
+                game, stats=stats, input_state=input_handler.state, frame_count=frame_count
+            )
             renderer.tick()
 
     renderer.close()

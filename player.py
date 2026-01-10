@@ -2,10 +2,11 @@
 
 import math
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Optional, Tuple
+
+from ball import Ball
 from config import Config
 from field import Field
-from ball import Ball
 
 NUM_DIRECTIONS = 16
 DIRECTION_ANGLES = [i * 22.5 for i in range(NUM_DIRECTIONS)]
@@ -20,6 +21,7 @@ def direction_to_angle(direction: int) -> Optional[float]:
 @dataclass
 class Player:
     """Tennis player with movement and hit capabilities."""
+
     player_id: int
     x: float
     y: float
@@ -33,9 +35,7 @@ class Player:
             return
         rad = math.radians(angle)
         self.x, self.y = field.clamp_position(
-            self.x + math.cos(rad) * self.speed,
-            self.y + math.sin(rad) * self.speed,
-            self.radius
+            self.x + math.cos(rad) * self.speed, self.y + math.sin(rad) * self.speed, self.radius
         )
 
     def can_hit(self, ball: Ball) -> bool:
@@ -60,5 +60,10 @@ class Player:
 
 def create_players(field: Field, config: Config) -> Tuple[Player, Player]:
     pos_a, pos_b = field.get_player_start_positions()
-    make = lambda pid, pos: Player(pid, pos[0], pos[1], config.player_speed, config.player_radius, config.reach_distance)
-    return (make(0, pos_a), make(1, pos_b))
+
+    def make_player(pid: int, pos: Tuple[float, float]) -> Player:
+        return Player(
+            pid, pos[0], pos[1], config.player_speed, config.player_radius, config.reach_distance
+        )
+
+    return (make_player(0, pos_a), make_player(1, pos_b))

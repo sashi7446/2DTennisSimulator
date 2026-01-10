@@ -1,7 +1,7 @@
 """Configuration for 2D Tennis Simulator."""
 
-from dataclasses import dataclass, field, asdict
-from typing import Dict, Any
+from dataclasses import asdict, dataclass
+from typing import Any, Dict
 
 
 @dataclass

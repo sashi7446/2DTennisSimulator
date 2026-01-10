@@ -2,9 +2,9 @@
 
 import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, asdict
-from typing import Dict, Any, Optional, Tuple
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
 
 @dataclass
@@ -28,7 +28,7 @@ class AgentConfig:
 
     @classmethod
     def load(cls, filepath: str) -> "AgentConfig":
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             return cls.from_dict(json.load(f))
 
 
@@ -76,8 +76,12 @@ class Agent(ABC):
         self.player_id = player_id
 
     def get_info(self) -> Dict[str, Any]:
-        return {"name": self.config.name, "type": self.config.agent_type,
-                "version": self.config.version, "description": self.config.description}
+        return {
+            "name": self.config.name,
+            "type": self.config.agent_type,
+            "version": self.config.version,
+            "description": self.config.description,
+        }
 
     def save(self, directory: str) -> str:
         path = Path(directory)
@@ -104,19 +108,22 @@ class Agent(ABC):
 
 
 def get_agent_class(agent_type: str) -> type:
-    from agents.chase import ChaseAgent, SmartChaseAgent
-    from agents.random_agent import RandomAgent
     from agents.baseliner import BaselinerAgent
+    from agents.chase import ChaseAgent, SmartChaseAgent
     from agents.positional import PositionalAgent
+    from agents.random_agent import RandomAgent
+
     classes = {
         "chase": ChaseAgent,
         "smart_chase": SmartChaseAgent,
-        "random": RandomAgent, "baseliner": BaselinerAgent,
+        "random": RandomAgent,
+        "baseliner": BaselinerAgent,
         "positional": PositionalAgent,
     }
     try:
         from agents.neural import NeuralAgent
         from agents.transformer import TransformerAgent
+
         classes["neural"] = NeuralAgent
         classes["transformer"] = TransformerAgent
     except ImportError:

@@ -1,7 +1,7 @@
 """Random Agent - Baseline random AI."""
 
 import random
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from agents.base import Agent, AgentConfig
 

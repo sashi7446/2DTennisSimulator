@@ -6,6 +6,7 @@ from typing import Callable, Dict
 
 try:
     import pygame
+
     PYGAME_AVAILABLE = True
 except ImportError:
     PYGAME_AVAILABLE = False
@@ -13,24 +14,26 @@ except ImportError:
 
 class SpeedLevel(IntEnum):
     """Game speed levels."""
-    NORMAL = 0    # 1x (60 FPS)
-    FAST = 1      # 2x (120 FPS)
-    FASTER = 2    # 4x (240 FPS)
-    UNLIMITED = 3 # No FPS limit, render skip
+
+    NORMAL = 0  # 1x (60 FPS)
+    FAST = 1  # 2x (120 FPS)
+    FASTER = 2  # 4x (240 FPS)
+    UNLIMITED = 3  # No FPS limit, render skip
 
 
 # Speed settings: (target_fps, render_every_n_frames)
 SPEED_SETTINGS = {
     SpeedLevel.NORMAL: (60, 1),
     SpeedLevel.FAST: (120, 1),
-    SpeedLevel.FASTER: (240, 2),      # Render every 2nd frame
-    SpeedLevel.UNLIMITED: (0, 8),     # No limit, render every 8th frame
+    SpeedLevel.FASTER: (240, 2),  # Render every 2nd frame
+    SpeedLevel.UNLIMITED: (0, 8),  # No limit, render every 8th frame
 }
 
 
 @dataclass
 class InputState:
     """Current state of input/UI controls."""
+
     quit_requested: bool = False
     paused: bool = False
     step_requested: bool = False
@@ -73,28 +76,38 @@ class InputHandler:
     def _setup_bindings(self) -> Dict[int, Callable[[], None]]:
         """Configure key bindings."""
         bindings = {
-            pygame.K_ESCAPE: lambda: setattr(self.state, 'quit_requested', True),
-            pygame.K_s: lambda: setattr(self.state, 'save_requested', True),
+            pygame.K_ESCAPE: lambda: setattr(self.state, "quit_requested", True),
+            pygame.K_s: lambda: setattr(self.state, "save_requested", True),
         }
         if self.debug_mode:
-            bindings.update({
-                # Pause/step
-                pygame.K_SPACE: lambda: setattr(self.state, 'paused', not self.state.paused),
-                pygame.K_n: lambda: setattr(self.state, 'step_requested', True),
-                # Speed control (1-4 keys)
-                pygame.K_1: lambda: setattr(self.state, 'speed_level', SpeedLevel.NORMAL),
-                pygame.K_2: lambda: setattr(self.state, 'speed_level', SpeedLevel.FAST),
-                pygame.K_3: lambda: setattr(self.state, 'speed_level', SpeedLevel.FASTER),
-                pygame.K_4: lambda: setattr(self.state, 'speed_level', SpeedLevel.UNLIMITED),
-                # Episode control
-                pygame.K_r: lambda: setattr(self.state, 'reset_requested', True),
-                # Display toggles
-                pygame.K_t: lambda: setattr(self.state, 'show_trajectory', not self.state.show_trajectory),
-                pygame.K_d: lambda: setattr(self.state, 'show_distances', not self.state.show_distances),
-                pygame.K_p: lambda: setattr(self.state, 'show_state_panel', not self.state.show_state_panel),
-                pygame.K_g: lambda: setattr(self.state, 'show_graphs', not self.state.show_graphs),
-                pygame.K_f: lambda: setattr(self.state, 'show_fps', not self.state.show_fps),
-            })
+            bindings.update(
+                {
+                    # Pause/step
+                    pygame.K_SPACE: lambda: setattr(self.state, "paused", not self.state.paused),
+                    pygame.K_n: lambda: setattr(self.state, "step_requested", True),
+                    # Speed control (1-4 keys)
+                    pygame.K_1: lambda: setattr(self.state, "speed_level", SpeedLevel.NORMAL),
+                    pygame.K_2: lambda: setattr(self.state, "speed_level", SpeedLevel.FAST),
+                    pygame.K_3: lambda: setattr(self.state, "speed_level", SpeedLevel.FASTER),
+                    pygame.K_4: lambda: setattr(self.state, "speed_level", SpeedLevel.UNLIMITED),
+                    # Episode control
+                    pygame.K_r: lambda: setattr(self.state, "reset_requested", True),
+                    # Display toggles
+                    pygame.K_t: lambda: setattr(
+                        self.state, "show_trajectory", not self.state.show_trajectory
+                    ),
+                    pygame.K_d: lambda: setattr(
+                        self.state, "show_distances", not self.state.show_distances
+                    ),
+                    pygame.K_p: lambda: setattr(
+                        self.state, "show_state_panel", not self.state.show_state_panel
+                    ),
+                    pygame.K_g: lambda: setattr(
+                        self.state, "show_graphs", not self.state.show_graphs
+                    ),
+                    pygame.K_f: lambda: setattr(self.state, "show_fps", not self.state.show_fps),
+                }
+            )
         return bindings
 
     def process_events(self) -> None:

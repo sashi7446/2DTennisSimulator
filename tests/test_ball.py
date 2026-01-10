@@ -1,14 +1,15 @@
 """Tests for Ball class."""
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import unittest
-import math
+
+from ball import Ball, create_serve_ball
 from config import Config
 from field import Field
-from ball import Ball, create_serve_ball
 
 
 class TestBall(unittest.TestCase):
@@ -237,10 +238,12 @@ class TestCreateServeBall(unittest.TestCase):
                 if wall:
                     break
 
-            self.assertTrue(passed_in_area,
-                           f"Ball did not pass through in-area. "
-                           f"Start: {self.field.center}, "
-                           f"Velocity: ({ball.vx}, {ball.vy})")
+            self.assertTrue(
+                passed_in_area,
+                f"Ball did not pass through in-area. "
+                f"Start: {self.field.center}, "
+                f"Velocity: ({ball.vx}, {ball.vy})",
+            )
 
 
 if __name__ == "__main__":

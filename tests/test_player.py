@@ -1,15 +1,16 @@
 """Tests for Player class."""
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import unittest
-import math
+
+from ball import Ball
 from config import Config
 from field import Field
-from ball import Ball
-from player import Player, create_players, direction_to_angle, NUM_MOVEMENT_ACTIONS
+from player import NUM_MOVEMENT_ACTIONS, Player, create_players, direction_to_angle
 
 
 class TestDirectionToAngle(unittest.TestCase):
