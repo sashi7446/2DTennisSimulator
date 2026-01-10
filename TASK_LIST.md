@@ -61,33 +61,31 @@
 |------|------|
 | 難易度 | ★★★☆☆ (中程度) |
 | 期待効果 | リグレッション防止、リファクタリング安全性向上 |
-| 現状 | 98テスト (game/ball/player/field のみ) |
-| 目標 | 150+ テスト (エージェント・環境含む) |
+| 現状 | 176テスト (game/ball/player/field/agents/env) |
+| 目標 | 150+ テスト (エージェント・環境含む) ✓ 達成 |
 
 **実装手順:**
 
-- [ ] **エージェントテスト** (`tests/test_agents.py` 新規)
-  - [ ] 各エージェントの `.act()` が有効なアクションを返すか
-  - [ ] `.learn()` でエラーが発生しないか
-  - [ ] `.save()` / `.load()` の往復でデータが保持されるか
-  - [ ] 対象: `ChaseAgent`, `SmartChaseAgent`, `RandomAgent`, `BaselinerAgent`, `PositionalAgent`
+- [x] **エージェントテスト** (`tests/test_agents.py` 新規)
+  - [x] 各エージェントの `.act()` が有効なアクションを返すか
+  - [x] `.learn()` でエラーが発生しないか
+  - [x] `.save()` / `.load()` の往復でデータが保持されるか
+  - [x] 対象: `ChaseAgent`, `SmartChaseAgent`, `RandomAgent`, `BaselinerAgent`, `PositionalAgent`
 
-- [ ] **Gymnasium 環境テスト** (`tests/test_env.py` 新規)
-  - [ ] `TennisEnv.reset()` が正しい observation を返すか
-  - [ ] `TennisEnv.step()` の戻り値形式 (obs, reward, done, truncated, info)
-  - [ ] action_space / observation_space の範囲検証
-  - [ ] `SinglePlayerTennisEnv` の動作確認
+- [x] **Gymnasium 環境テスト** (`tests/test_env.py` 新規)
+  - [x] `TennisEnv.reset()` が正しい observation を返すか
+  - [x] `TennisEnv.step()` の戻り値形式 (obs, reward, done, truncated, info)
+  - [x] action_space / observation_space の範囲検証
+  - [x] `SinglePlayerTennisEnv` の動作確認
 
 - [ ] **CLI 統合テスト** (`tests/test_cli.py` 新規)
   - [ ] `--headless` モードでのエピソード実行
   - [ ] `--agent1`, `--agent2` オプションの動作確認
   - [ ] 無効な引数でのエラーハンドリング
 
-- [ ] **pytest-cov** でカバレッジ計測を追加
-  ```bash
-  pip install pytest-cov
-  pytest --cov=. --cov-report=html
-  ```
+- [x] **pytest-cov** でカバレッジ計測を追加
+  - [x] pyproject.toml に coverage 設定追加
+  - [x] CI/CD でカバレッジ計測を実行
 
 ---
 
@@ -402,6 +400,9 @@
 | CHANGELOG.md | 2026-01-10 | バージョン履歴管理を開始 |
 | 型チェック・リンター導入 | 2026-01-10 | `pyproject.toml`, ruff, black, mypy, CI統合 |
 | エラー処理・バリデーション強化 | 2026-01-10 | `game.py`, `agents/base.py`, `env.py` |
+| エージェントテスト | 2026-01-10 | `tests/test_agents.py` 42テスト追加 |
+| Gymnasium環境テスト | 2026-01-10 | `tests/test_env.py` 36テスト追加 |
+| pytest-cov導入 | 2026-01-10 | カバレッジ計測・CI統合 |
 
 ---
 
@@ -458,4 +459,4 @@
 
 ---
 
-*最終更新: 2026-01-10 (5件完了: 進捗バー、ヘルプ、CHANGELOG、型チェック・リンター導入、エラー処理強化)*
+*最終更新: 2026-01-10 (8件完了: テストカバレッジ拡充でテスト数98→176、pytest-cov導入)*
