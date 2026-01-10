@@ -102,6 +102,13 @@ class TennisEnv:
         if self.render_mode is None:
             return
         if self.renderer is None:
+            try:
+                import pygame  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    "pygame is required for visual rendering mode. "
+                    "Install with: pip install pygame"
+                )
             from renderer import Renderer
             self.renderer = Renderer(self.config)
         self.renderer.render(self.game)
