@@ -61,7 +61,7 @@
 |------|------|
 | 難易度 | ★★★☆☆ (中程度) |
 | 期待効果 | リグレッション防止、リファクタリング安全性向上 |
-| 現状 | 176テスト (game/ball/player/field/agents/env) |
+| 現状 | 203テスト (game/ball/player/field/agents/env/cli) |
 | 目標 | 150+ テスト (エージェント・環境含む) ✓ 達成 |
 
 **実装手順:**
@@ -78,10 +78,10 @@
   - [x] action_space / observation_space の範囲検証
   - [x] `SinglePlayerTennisEnv` の動作確認
 
-- [ ] **CLI 統合テスト** (`tests/test_cli.py` 新規)
-  - [ ] `--headless` モードでのエピソード実行
-  - [ ] `--agent1`, `--agent2` オプションの動作確認
-  - [ ] 無効な引数でのエラーハンドリング
+- [x] **CLI 統合テスト** (`tests/test_cli.py` 新規)
+  - [x] `--headless` モードでのエピソード実行
+  - [x] `--agent-a`, `--agent-b` オプションの動作確認
+  - [x] 無効な引数でのエラーハンドリング
 
 - [x] **pytest-cov** でカバレッジ計測を追加
   - [x] pyproject.toml に coverage 設定追加
@@ -100,17 +100,17 @@
 
 #### 3.1 英語版 README
 
-- [ ] `README.md` → `README_ja.md` にリネーム
-- [ ] `README.md` を英語で新規作成
-  - [ ] Features セクション
-  - [ ] Quick Start (installation, basic usage)
-  - [ ] Agent Types 一覧
-  - [ ] Gymnasium Integration 例
-  - [ ] Configuration 説明
+- [x] `README.md` → `README_ja.md` にリネーム
+- [x] `README.md` を英語で新規作成
+  - [x] Features セクション
+  - [x] Quick Start (installation, basic usage)
+  - [x] Agent Types 一覧
+  - [x] Gymnasium Integration 例
+  - [x] Configuration 説明
 
 #### 3.2 CONTRIBUTING.md 作成
 
-- [ ] 開発環境セットアップ手順
+- [x] 開発環境セットアップ手順
   ```markdown
   ## Development Setup
   1. Clone the repository
@@ -118,8 +118,8 @@
   3. Install dependencies: `pip install -r requirements-dev.txt`
   4. Run tests: `python run_tests.py`
   ```
-- [ ] コーディング規約 (black, ruff 使用)
-- [ ] PR プロセス説明
+- [x] コーディング規約 (black, ruff 使用)
+- [x] PR プロセス説明
 - [ ] Issue テンプレート
 
 #### 3.3 docstring 追加
@@ -403,6 +403,9 @@
 | エージェントテスト | 2026-01-10 | `tests/test_agents.py` 42テスト追加 |
 | Gymnasium環境テスト | 2026-01-10 | `tests/test_env.py` 36テスト追加 |
 | pytest-cov導入 | 2026-01-10 | カバレッジ計測・CI統合 |
+| CLI統合テスト | 2026-01-10 | `tests/test_cli.py` 27テスト追加 |
+| 英語版README | 2026-01-10 | `README.md` (英語), `README_ja.md` (日本語) |
+| CONTRIBUTING.md | 2026-01-10 | 開発ガイドライン・コーディング規約 |
 
 ---
 
@@ -459,4 +462,4 @@
 
 ---
 
-*最終更新: 2026-01-10 (8件完了: テストカバレッジ拡充でテスト数98→176、pytest-cov導入)*
+*最終更新: 2026-01-10 (11件完了: テスト数203、CLI統合テスト・英語版README・CONTRIBUTING.md追加)*

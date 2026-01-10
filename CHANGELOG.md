@@ -11,10 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Progress bar display using `tqdm` for headless training mode
 - Enhanced help text for CLI with detailed examples and descriptions
 - This CHANGELOG.md file to track project changes
+- CLI integration tests (`tests/test_cli.py`) with 27 tests covering headless mode, agent options, and error handling
+- English README.md for international users
+- Japanese README moved to README_ja.md
+- CONTRIBUTING.md with development setup, coding guidelines, and PR process
 
 ### Changed
 - Improved CLI help output with usage examples and detailed option descriptions
 - Progress feedback now shows win rates during training
+- Test suite expanded from 176 to 203 tests
 
 ### Fixed
 - N/A
