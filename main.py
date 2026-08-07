@@ -102,9 +102,10 @@ def run_visual_game(
         print("Install pygame with: pip install pygame")
         return
 
-    # Create components
+    # Create components. Stats are tracked in both modes - the play-by-play
+    # feed and rally records are shown in normal mode too.
     input_handler = InputHandler(debug_mode=debug)
-    stats = StatsTracker() if debug else None
+    stats = StatsTracker()
 
     if debug:
         renderer = DebugRenderer(config)
@@ -146,6 +147,8 @@ def run_visual_game(
         last_obs = None
         last_actions = None
         last_rewards = None
+        last_reason = ""
+        final_rally = 0
 
         # print(f"Episode {episode_count} started")
 
@@ -175,10 +178,24 @@ def run_visual_game(
                 last_actions = (current_action_a, current_action_b)
                 last_rewards = result.rewards
 
-                if debug and stats:
+                stats.next_frame()
+                frame_count += 1
+
+                # Play-by-play. Shown in both modes, so it stays outside the
+                # debug branch.
+                if result.hit_occurred[0]:
+                    stats.log_event(f"A returns  (rally {game.rally_count})")
+                elif result.hit_occurred[1]:
+                    stats.log_event(f"B returns  (rally {game.rally_count})")
+
+                if result.point_result:
+                    pr = result.point_result
+                    stats.log_event(f"POINT {'AB'[pr.winner]}  ({pr.reason})")
+                    last_reason = pr.reason
+                    final_rally = game.rally_count
+
+                if debug:
                     stats.add_reward(result.rewards[0], result.rewards[1])
-                    stats.next_frame()
-                    frame_count += 1
 
                     if game.ball and game.ball.is_in != last_is_in:
                         stats.log_event(f"is_in {'ON' if game.ball.is_in else 'OFF'}")
@@ -213,7 +230,7 @@ def run_visual_game(
                         rewards=last_rewards,
                     )
                 else:
-                    renderer.render(game, total_wins=tuple(total_wins))
+                    renderer.render(game, total_wins=tuple(total_wins), stats=stats)
 
             # Tick with dynamic FPS (0 = no limit)
             target_fps = input_handler.state.target_fps
@@ -224,8 +241,8 @@ def run_visual_game(
             winner = game.winner
             total_wins[winner] += 1
 
-            if debug and stats:
-                stats.end_episode(winner)
+            if stats.end_episode(winner, final_rally, last_reason):
+                stats.log_event(f"NEW RECORD  {final_rally} rallies")
 
             # winner_name = "A" if winner == 0 else "B"
 
@@ -298,6 +315,7 @@ def run_headless_training(
     print("=========================\n")
 
     wins = [0, 0]
+    rallies: list = []
 
     # Use tqdm progress bar if available
     episode_range = range(1, num_episodes + 1)
@@ -320,6 +338,7 @@ def run_headless_training(
             agent_b.learn(result.rewards[1], game.is_game_over)
 
         wins[game.winner] += 1
+        rallies.append(game.rally_count)
 
         # Update progress bar description with current stats
         if TQDM_AVAILABLE and episode % 10 == 0:
@@ -338,6 +357,8 @@ def run_headless_training(
             _save_agents(agent_a, agent_b, save_dir, episode)
 
     print(f"\nFinal: A={wins[0]} wins, B={wins[1]} wins")
+    if rallies:
+        print(f"Rally: longest {max(rallies)}, average {sum(rallies)/len(rallies):.1f}")
 
     if save_dir:
         _save_agents(agent_a, agent_b, save_dir, num_episodes)

@@ -59,7 +59,7 @@ record_replay.py  →  docs/replay.js  →  docs/index.html (canvas再生)
 
 「まず今週末、起動した瞬間に体感が変わる」もの。既存の構造にほぼ乗るだけで済む。
 
-### 1.1 ラリーカウンター & 実況ログ
+### 1.1 ラリーカウンター & 実況ログ ✅ 実装済み
 
 | 項目 | 内容 |
 |------|------|
@@ -72,24 +72,25 @@ record_replay.py  →  docs/replay.js  →  docs/index.html (canvas再生)
 
 **実装手順:**
 
-- [ ] `StatsTracker` にラリー統計を追加
-  - [ ] `longest_rally: int` / `current_rally: int` / `rally_history: List[int]`
-  - [ ] `end_episode()` でラリー長を記録
-- [ ] `main.run_visual_game()` のループで `result.hit_occurred` / `result.point_result` を
+- [x] `StatsTracker` にラリー統計を追加
+  - [x] `longest_rally` / `rally_history` / `average_rally`
+  - [x] `end_episode(winner, rally, reason)` がラリー長を記録し、**記録更新なら True を返す**
+- [x] `main.run_visual_game()` のループで `result.hit_occurred` / `result.point_result` を
       `stats.log_event()` に流す
-  ```python
-  if any(result.hit_occurred):
-      hitter = "A" if result.hit_occurred[0] else "B"
-      stats.log_event(f"{hitter} リターン (ラリー {game.rally_count})")
-  if result.point_result:
-      pr = result.point_result
-      stats.log_event(f"ポイント {'AB'[pr.winner]}! ({pr.reason})")
-  ```
-- [ ] 新規 `CommentaryOverlay` (`Overlay` Protocol 準拠) でコート横に直近8件を表示
-- [ ] **最長ラリー更新時は画面中央にフラッシュ表示** — 「NEW RECORD: 23 RALLIES」
-      これが一番効く。記録更新は無条件で気持ちいい
+- [x] `CommentaryOverlay` でコート左下に直近8件を表示（新しい順にフェード）
+- [x] **最長ラリー更新時にコート上部へフラッシュ表示** — 「NEW RECORD! 12 RALLIES」
+- [x] ヘッドレス学習の最後に最長／平均ラリーを出力
 
-**完了条件:** デバッグ表示なしの通常モードでも、ラリー数と決着理由が読める。
+**完了条件:** ✅ デバッグ表示なしの通常モードでも、ラリー数・最長記録・決着理由が読める。
+
+**設計メモ:**
+
+- フラッシュの寿命は `StatsTracker.record_is_fresh()` が `frame_count` から導出する。
+  レンダラはアニメーション状態を一切持たない（受動のまま）
+- 実況テキストは **ASCII のみ**。`pygame.font.Font(None, ...)` は既定フォントで、
+  日本語グリフを持たないため和文は豆腐になる
+- `DebugRenderer._draw_ui` の重複（基底とほぼ同一の28行）を `_draw_game_over` フックに統合。
+  ついでに実況ログと Obs ミニマップが右上で重なっていた既存の不具合も解消した
 
 ---
 
@@ -284,9 +285,9 @@ README が掲げている問い —— **「ホームポジションに戻る戦
 ```
 0   スマホ観戦 (リプレイ)   ← 済。ここで「状態→canvas描画」の土台ができた
         ↓
-1.1 ラリーカウンター/実況   ← 次はこれ。pygame側にも実況を入れる
+1.1 ラリーカウンター/実況   ← 済。pygame側にも実況と最長ラリー記録が入った
         ↓
-1.2 音とエフェクト          ← 「試合」になる
+1.2 音とエフェクト          ← 次はこれ。「試合」になる
         ↓
 2.3 ヒートマップ            ← プロジェクトの問いに答える画が出る
         ↓
