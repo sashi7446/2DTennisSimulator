@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12161c">
+<title>2D Tennis Simulator - Replay</title>
+<style>
+  :root {
+    --bg: #12161c;
+    --panel: #1b212b;
+    --line: #2b3442;
+    --text: #e8edf4;
+    --dim: #8a97a8;
+    --a: #ff5b5b;
+    --b: #4d8bff;
+    --ball: #ffe14d;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", sans-serif;
+    max-width: 720px;
+    margin-inline: auto;
+  }
+  h1 { font-size: 15px; font-weight: 600; margin: 0 0 10px; color: var(--dim); }
+  .score {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    font-variant-numeric: tabular-nums; margin-bottom: 10px;
+  }
+  .score .name { font-size: 13px; color: var(--dim); }
+  .score .num { font-size: 30px; font-weight: 700; line-height: 1; }
+  .score .a .num { color: var(--a); }
+  .score .b .num { color: var(--b); }
+  .score .sep { color: var(--dim); font-size: 22px; }
+  .side { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 92px; }
+  canvas { width: 100%; display: block; border-radius: 10px; background: var(--panel); }
+  .hud {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 10px 2px; font-size: 13px; color: var(--dim);
+    font-variant-numeric: tabular-nums; min-height: 22px;
+  }
+  .badge {
+    color: #ffca4d; font-weight: 600;
+    opacity: 0; transition: opacity .2s;
+  }
+  .badge.on { opacity: 1; }
+  .controls { display: flex; gap: 8px; }
+  button {
+    flex: 1; min-height: 46px; padding: 0 10px;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 10px;
+    font-size: 15px; font-family: inherit; cursor: pointer;
+  }
+  button:active { background: #252d3a; }
+  #play { flex: 1.4; font-weight: 600; }
+  footer { margin-top: 16px; font-size: 12px; color: var(--dim); text-align: center; }
+  footer a { color: var(--dim); }
+</style>
+</head>
+<body>
+
+<h1>2D Tennis Simulator — Replay</h1>
+
+<div class="score">
+  <div class="side a"><span class="name" id="nameA">A</span><span class="num" id="scoreA">0</span></div>
+  <span class="sep">-</span>
+  <div class="side b"><span class="name" id="nameB">B</span><span class="num" id="scoreB">0</span></div>
+</div>
+
+<canvas id="court"></canvas>
+
+<div class="hud">
+  <span id="info">-</span>
+  <span class="badge" id="badge">🔥 LONGEST RALLY</span>
+</div>
+
+<div class="controls">
+  <button id="prev" aria-label="前のポイント">⏮</button>
+  <button id="play">⏸ PAUSE</button>
+  <button id="next" aria-label="次のポイント">⏭</button>
+  <button id="speed">1.0x</button>
+</div>
+
+<footer>
+  タップで再生/一時停止 ・
+  <a href="https://github.com/sashi7446/2DTennisSimulator">GitHub</a>
+</footer>
+
+<script src="replay.js"></script>
+<script>
+(function () {
+  const R = window.REPLAY;
+  const canvas = document.getElementById("court");
+  const ctx = canvas.getContext("2d");
+
+  if (!R || !R.points || !R.points.length) {
+    document.getElementById("info").textContent =
+      "replay.js がありません。python record_replay.py で生成してください。";
+    return;
+  }
+
+  const [FW, FH] = R.field;
+  const [BALL_R, PLAYER_R, REACH] = R.radii;
+  const PAD = 16;                       // court margin, in field units
+  const VW = FW + PAD * 2, VH = FH + PAD * 2;
+  const TRAIL = 14;                     // ball trail length, in frames
+  const FLASH = 8;                      // hit flash duration, in frames
+  const END_HOLD = 55;                  // frames to hold the winner banner
+
+  // Longest rally in the whole replay - worth pointing at.
+  const bestRally = Math.max(...R.points.map(p => p.rally));
+
+  let pointIdx = 0, frameIdx = 0, holding = 0, playing = true, speed = 1;
+  const SPEEDS = [1, 2, 0.5];
+  let speedIdx = 0;
+
+  document.getElementById("nameA").textContent = R.names[0];
+  document.getElementById("nameB").textContent = R.names[1];
+
+  // --- layout -------------------------------------------------------------
+  let scale = 1;
+  function resize() {
+    const cssW = canvas.clientWidth;
+    const cssH = cssW * VH / VW;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas.style.height = cssH + "px";
+    scale = (cssW / VW) * dpr;
+  }
+  const X = x => (x + PAD) * scale;
+  const Y = y => (y + PAD) * scale;
+  const S = v => v * scale;
+
+  // --- drawing ------------------------------------------------------------
+  function drawCourt() {
+    ctx.fillStyle = "#1b212b";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#2f7d55";
+    ctx.fillRect(X(0), Y(0), S(FW), S(FH));
+
+    ctx.fillStyle = "#3d9d6b";
+    for (const [ax, ay, aw, ah] of R.areas) ctx.fillRect(X(ax), Y(ay), S(aw), S(ah));
+    ctx.strokeStyle = "rgba(255,255,255,.65)";
+    ctx.lineWidth = Math.max(1, S(2));
+    for (const [ax, ay, aw, ah] of R.areas) ctx.strokeRect(X(ax), Y(ay), S(aw), S(ah));
+
+    ctx.strokeStyle = "rgba(255,255,255,.35)";
+    ctx.lineWidth = Math.max(1, S(1));
+    ctx.beginPath();
+    ctx.moveTo(X(FW / 2), Y(0));
+    ctx.lineTo(X(FW / 2), Y(FH));
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255,255,255,.8)";
+    ctx.lineWidth = Math.max(1, S(3));
+    ctx.strokeRect(X(0), Y(0), S(FW), S(FH));
+  }
+
+  function circle(x, y, r, fill, stroke, width) {
+    ctx.beginPath();
+    ctx.arc(X(x), Y(y), S(r), 0, Math.PI * 2);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1, S(width || 1)); ctx.stroke(); }
+  }
+
+  function drawFrame() {
+    const frames = R.points[pointIdx].f;
+    const f = frames[Math.min(frameIdx, frames.length - 1)];
+
+    drawCourt();
+
+    // ball trail
+    for (let i = Math.max(0, frameIdx - TRAIL); i < frameIdx; i++) {
+      const age = (i - (frameIdx - TRAIL)) / TRAIL;
+      ctx.globalAlpha = age * 0.4;
+      circle(frames[i][0], frames[i][1], BALL_R * (0.4 + age * 0.6), "#ffe14d");
+    }
+    ctx.globalAlpha = 1;
+
+    // players
+    circle(f[3], f[4], REACH, null, "rgba(255,91,91,.35)", 1);
+    circle(f[5], f[6], REACH, null, "rgba(77,139,255,.35)", 1);
+    circle(f[3], f[4], PLAYER_R, "#ff5b5b", "rgba(255,255,255,.85)", 2);
+    circle(f[5], f[6], PLAYER_R, "#4d8bff", "rgba(255,255,255,.85)", 2);
+
+    // hit flash - an expanding ring where contact happened
+    for (let i = Math.max(0, frameIdx - FLASH); i <= frameIdx && i < frames.length; i++) {
+      if (!frames[i][7]) continue;
+      const age = (frameIdx - i) / FLASH;
+      ctx.globalAlpha = 1 - age;
+      circle(frames[i][0], frames[i][1], BALL_R + age * 26, null, "#ffffff", 2);
+    }
+    ctx.globalAlpha = 1;
+
+    // ball - dimmed until it has passed through an in-area
+    circle(f[0], f[1], BALL_R, f[2] ? "#ffe14d" : "#9a8f2e", "rgba(0,0,0,.35)", 1);
+
+    if (holding > 0) drawBanner();
+  }
+
+  function drawBanner() {
+    const p = R.points[pointIdx];
+    const text = p.w < 0
+      ? "TIME UP"
+      : `${R.names[p.w]} WINS  (${p.reason.toUpperCase()})`;
+    ctx.font = `700 ${Math.round(S(26))}px -apple-system, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const w = ctx.measureText(text).width + S(28);
+    const h = S(46);
+    ctx.fillStyle = "rgba(0,0,0,.72)";
+    ctx.fillRect(canvas.width / 2 - w / 2, canvas.height / 2 - h / 2, w, h);
+    ctx.fillStyle = p.w === 0 ? "#ff8a8a" : p.w === 1 ? "#8fb4ff" : "#e8edf4";
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  }
+
+  // --- hud ----------------------------------------------------------------
+  function rallyAt(idx) {
+    const frames = R.points[pointIdx].f;
+    let n = 0;
+    for (let i = 0; i <= Math.min(idx, frames.length - 1); i++) if (frames[i][7]) n++;
+    return n;
+  }
+
+  function updateHud() {
+    let a = 0, b = 0;
+    for (let i = 0; i < pointIdx; i++) {
+      if (R.points[i].w === 0) a++;
+      else if (R.points[i].w === 1) b++;
+    }
+    document.getElementById("scoreA").textContent = a;
+    document.getElementById("scoreB").textContent = b;
+    document.getElementById("info").textContent =
+      `Point ${pointIdx + 1}/${R.points.length}   Rally ${rallyAt(frameIdx)}`;
+    document.getElementById("badge").classList.toggle(
+      "on", R.points[pointIdx].rally >= bestRally && bestRally > 0
+    );
+  }
+
+  // --- playback -----------------------------------------------------------
+  function goto(idx) {
+    pointIdx = (idx + R.points.length) % R.points.length;
+    frameIdx = 0;
+    holding = 0;
+  }
+
+  let acc = 0, last = performance.now();
+  function loop(now) {
+    const dt = Math.min(now - last, 250);
+    last = now;
+
+    if (playing) {
+      acc += dt * (R.fps / 1000) * speed;
+      while (acc >= 1) {
+        acc -= 1;
+        const frames = R.points[pointIdx].f;
+        if (frameIdx < frames.length - 1) {
+          frameIdx++;
+        } else if (holding < END_HOLD) {
+          holding++;
+        } else {
+          goto(pointIdx + 1);
+        }
+      }
+    }
+
+    drawFrame();
+    updateHud();
+    requestAnimationFrame(loop);
+  }
+
+  // --- controls -----------------------------------------------------------
+  const playBtn = document.getElementById("play");
+  function setPlaying(v) {
+    playing = v;
+    playBtn.textContent = playing ? "⏸ PAUSE" : "▶ PLAY";
+  }
+  playBtn.onclick = () => setPlaying(!playing);
+  canvas.onclick = () => setPlaying(!playing);
+  document.getElementById("prev").onclick = () => goto(pointIdx - 1);
+  document.getElementById("next").onclick = () => goto(pointIdx + 1);
+  document.getElementById("speed").onclick = (e) => {
+    speedIdx = (speedIdx + 1) % SPEEDS.length;
+    speed = SPEEDS[speedIdx];
+    e.target.textContent = speed.toFixed(1) + "x";
+  };
+
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", resize);
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

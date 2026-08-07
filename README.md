@@ -106,6 +106,30 @@ python main.py --agent-a saved/champion_v1 --agent-b saved/champion_v2
   - Player B 累積報酬（エピソード単位）
   - Player B 5エピソード移動平均
 
+## スマホで観る（リプレイビューア）
+
+試合を録画して、静的HTMLで再生できます。サーバー不要・GitHub Pages で公開できます。
+
+```bash
+# 試合を録画 (docs/replay.js が出力される)
+python record_replay.py --agent-a chase --agent-b smart --points 20
+
+# 学習済みエージェントの世代対決も録れる
+python record_replay.py --agent-a saved/gen_050 --agent-b saved/gen_001 --points 30
+```
+
+`docs/index.html` をブラウザで開けばそのまま再生できます（`file://` でも動作）。
+GitHub Pages で公開する場合は **Settings → Pages → Source: main / docs** を選択。
+
+| 操作 | 動作 |
+|------|------|
+| コートをタップ | 再生 / 一時停止 |
+| ⏮ / ⏭ | 前 / 次のポイント |
+| 1.0x | 再生速度（1.0x → 2.0x → 0.5x） |
+
+記録されるのはボール・プレイヤーの座標と打球イベントのみ（1ポイントあたり数KB）。
+再生側は canvas で描き直しているため、pygame も Python も不要です。
+
 ## Gymnasium環境
 
 強化学習ライブラリとの連携用：
@@ -219,6 +243,10 @@ Config(reward_rally=0.0, reward_in_area=0.0, reward_step=0.0)
 ├── renderer.py      # Pygame描画（デバッグオーバーレイ含む）
 ├── env.py           # Gymnasium環境
 ├── debug.py         # デバッグログ・バリデーション
+├── record_replay.py # リプレイ録画（docs/replay.js を生成）
+├── docs/            # スマホ向けリプレイビューア（GitHub Pages）
+│   ├── index.html   # 単体で動く再生プレイヤー（依存ゼロ）
+│   └── replay.js    # 録画データ（生成物）
 ├── agents/          # エージェントシステム
 │   ├── __init__.py
 │   ├── base.py      # 基底クラス（save/load）
