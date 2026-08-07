@@ -103,6 +103,50 @@ class TestRecordFlash:
         assert stats.record_is_fresh() is False
 
 
+class TestHitEvents:
+    """Recent hits drive the impact-ring effect."""
+
+    def test_no_hits_initially(self):
+        assert StatsTracker().recent_hits() == []
+
+    def test_fresh_hit_has_zero_age(self):
+        stats = StatsTracker()
+        stats.log_hit(100.0, 200.0, 0)
+        assert stats.recent_hits() == [(0.0, 100.0, 200.0, 0)]
+
+    def test_age_grows_with_frames(self):
+        stats = StatsTracker()
+        stats.log_hit(10.0, 20.0, 1)
+        for _ in range(5):
+            stats.next_frame()
+        age, x, y, player_id = stats.recent_hits(window_frames=10)[0]
+        assert age == 0.5
+        assert (x, y, player_id) == (10.0, 20.0, 1)
+
+    def test_hit_expires_outside_window(self):
+        stats = StatsTracker()
+        stats.log_hit(10.0, 20.0, 0)
+        for _ in range(10):
+            stats.next_frame()
+        assert stats.recent_hits(window_frames=10) == []
+
+    def test_only_recent_hits_are_returned(self):
+        stats = StatsTracker()
+        stats.log_hit(1.0, 1.0, 0)
+        for _ in range(20):
+            stats.next_frame()
+        stats.log_hit(2.0, 2.0, 1)
+        hits = stats.recent_hits(window_frames=10)
+        assert len(hits) == 1
+        assert hits[0][1] == 2.0
+
+    def test_hit_buffer_is_bounded(self):
+        stats = StatsTracker()
+        for i in range(20):
+            stats.log_hit(float(i), 0.0, 0)
+        assert len(stats.hit_events) == 8
+
+
 class TestEventLog:
     """The play-by-play feed."""
 

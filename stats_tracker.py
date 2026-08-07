@@ -2,7 +2,7 @@
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, List, Optional
+from typing import Deque, List, Optional, Tuple
 
 
 @dataclass
@@ -53,6 +53,9 @@ class StatsTracker:
         self.event_log: Deque[str] = deque(maxlen=8)
         self.frame_count = 0
 
+        # Recent hits, for the impact effect: (frame, x, y, player_id)
+        self.hit_events: Deque[Tuple[int, float, float, int]] = deque(maxlen=8)
+
     def add_reward(self, reward_a: float, reward_b: float) -> None:
         """Record rewards for current step."""
         self.current_reward_a += reward_a
@@ -67,6 +70,23 @@ class StatsTracker:
     def next_frame(self) -> None:
         """Advance frame counter."""
         self.frame_count += 1
+
+    def log_hit(self, x: float, y: float, player_id: int) -> None:
+        """Record where a hit landed so the renderer can flash it."""
+        self.hit_events.append((self.frame_count, x, y, player_id))
+
+    def recent_hits(self, window_frames: int = 8) -> List[Tuple[float, float, float, int]]:
+        """Hits from the last few frames as (age, x, y, player_id).
+
+        `age` runs 0.0 (just happened) to 1.0 (about to expire), which is
+        all the renderer needs to size and fade the impact ring.
+        """
+        result = []
+        for frame, x, y, player_id in self.hit_events:
+            elapsed = self.frame_count - frame
+            if 0 <= elapsed < window_frames:
+                result.append((elapsed / window_frames, x, y, player_id))
+        return result
 
     def record_is_fresh(self, duration_frames: int = 120) -> bool:
         """True shortly after a longest-rally record was set.

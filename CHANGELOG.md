@@ -15,7 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Longest-rally tracking with an on-screen record announcement
 - `StatsTracker.average_rally` and rally history
 - Headless training now reports longest and average rally length
-- Stats tracker tests (`tests/test_stats_tracker.py`) with 18 tests
+- Stats tracker tests (`tests/test_stats_tracker.py`) with 24 tests
+- `audio.py`: procedural sound effects synthesised with numpy, no audio assets
+- Hit sounds pitched by ball speed; point stings rise for `in` and fall for `out`
+- Impact ring effect at each point of contact
+- `--mute` flag to disable sound in visual mode
+- Audio tests (`tests/test_audio.py`) with 16 tests that need no audio device
 
 - Progress bar display using `tqdm` for headless training mode
 - Enhanced help text for CLI with detailed examples and descriptions
@@ -28,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Improved CLI help output with usage examples and detailed option descriptions
 - Progress feedback now shows win rates during training
-- Test suite expanded from 176 to 221 tests
+- Test suite expanded from 203 to 247 tests
 - Stats are now tracked in normal mode too, not just under `--debug`
 - Event log entries no longer carry a frame-number prefix (the state panel already shows it)
 

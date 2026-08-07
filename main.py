@@ -82,6 +82,7 @@ def run_visual_game(
     agent_b: Agent,
     debug: bool = False,
     save_dir: Optional[str] = None,
+    mute: bool = False,
 ) -> None:
     """Run a game with pygame visualization and agent control.
 
@@ -89,12 +90,14 @@ def run_visual_game(
     - InputHandler: processes events, manages pause/step/speed state
     - StatsTracker: tracks rewards, wins, events
     - Renderer: draws game state to screen (passive)
+    - SoundBank: plays synthesised effects (silent if unavailable)
     - Game: runs simulation logic
     """
     import time
 
     try:
-        from input_handler import InputHandler
+        from audio import SoundBank
+        from input_handler import InputHandler, SpeedLevel
         from renderer import DebugRenderer, GameRenderer
         from stats_tracker import StatsTracker
     except ImportError as e:
@@ -106,6 +109,9 @@ def run_visual_game(
     # feed and rally records are shown in normal mode too.
     input_handler = InputHandler(debug_mode=debug)
     stats = StatsTracker()
+
+    # Built before the renderer so the mixer gets its buffer settings first
+    sounds = SoundBank(enabled=not mute)
 
     if debug:
         renderer = DebugRenderer(config)
@@ -181,18 +187,26 @@ def run_visual_game(
                 stats.next_frame()
                 frame_count += 1
 
+                # Effects are muted past 2x, where they turn into a rattle
+                audible = input_handler.state.speed_level <= SpeedLevel.FAST
+
                 # Play-by-play. Shown in both modes, so it stays outside the
                 # debug branch.
-                if result.hit_occurred[0]:
-                    stats.log_event(f"A returns  (rally {game.rally_count})")
-                elif result.hit_occurred[1]:
-                    stats.log_event(f"B returns  (rally {game.rally_count})")
+                hitter = 0 if result.hit_occurred[0] else 1 if result.hit_occurred[1] else None
+                if hitter is not None:
+                    stats.log_event(f"{'AB'[hitter]} returns  (rally {game.rally_count})")
+                    if game.ball:
+                        stats.log_hit(game.ball.x, game.ball.y, hitter)
+                        if audible:
+                            sounds.hit(game.ball.get_speed() / config.ball_speed)
 
                 if result.point_result:
                     pr = result.point_result
                     stats.log_event(f"POINT {'AB'[pr.winner]}  ({pr.reason})")
                     last_reason = pr.reason
                     final_rally = game.rally_count
+                    if audible:
+                        sounds.point(pr.reason)
 
                 if debug:
                     stats.add_reward(result.rewards[0], result.rewards[1])
@@ -279,6 +293,7 @@ def run_visual_game(
     if save_dir:
         _save_agents(agent_a, agent_b, save_dir, episode_count)
 
+    sounds.close()
     renderer.close()
 
 
@@ -372,6 +387,7 @@ def run_benchmark(
     agent_b: Agent,
     train_episodes: int = 300,
     save_dir: Optional[str] = None,
+    mute: bool = False,
 ) -> None:
     """Run benchmark: train headless, then visualize in debug mode.
 
@@ -417,6 +433,7 @@ def run_benchmark(
         agent_b,
         debug=True,
         save_dir=save_dir,
+        mute=mute,
     )
 
 
@@ -507,6 +524,12 @@ For more information, see README.md
         "Use 0 for unlimited FPS (max speed)",
     )
     parser.add_argument(
+        "--mute",
+        action="store_true",
+        help="Disable sound effects in visual mode\n"
+        "Sound is already silent when no audio device is available",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug mode in visual mode\n"
@@ -565,6 +588,7 @@ For more information, see README.md
             agent_b,
             train_episodes=args.episodes,
             save_dir=args.save_dir,
+            mute=args.mute,
         )
     else:
         run_visual_game(
@@ -573,6 +597,7 @@ For more information, see README.md
             agent_b,
             debug=args.debug,
             save_dir=args.save_dir,
+            mute=args.mute,
         )
 
 

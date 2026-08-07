@@ -58,9 +58,10 @@ class GameRenderer:
         self.small_font = pygame.font.Font(None, 24)
         self.debug_font = pygame.font.Font(None, 18)
 
-        # Play-by-play is shown in both normal and debug mode
+        # Shown in both normal and debug mode
         self.commentary = CommentaryOverlay()
         self.record_flash = RecordFlashOverlay()
+        self.hit_flash = HitFlashOverlay()
 
     def field_to_screen(self, x: float, y: float) -> Tuple[int, int]:
         """Convert field coordinates to screen coordinates."""
@@ -157,6 +158,11 @@ class GameRenderer:
         pygame.draw.rect(self.screen, BLACK, rect.inflate(20, 10))
         self.screen.blit(text, rect)
 
+    def _draw_hit_flash(self, stats: Any) -> None:
+        """Draw impact rings for hits from the last few frames."""
+        if stats:
+            self.hit_flash.draw(self.screen, stats.recent_hits(), self.field_to_screen)
+
     def _draw_commentary(self, stats: Any) -> None:
         """Draw the play-by-play feed at the bottom-left of the court."""
         if not stats or not stats.event_log:
@@ -193,8 +199,9 @@ class GameRenderer:
             stats: StatsTracker for the play-by-play feed and rally records
         """
         self._draw_field(game)
-        self._draw_ball(game)
         self._draw_players(game)
+        self._draw_hit_flash(stats)
+        self._draw_ball(game)
         self._draw_commentary(stats)
         self._draw_record_flash(stats)
         self._draw_ui(game, total_wins, stats)
@@ -263,6 +270,22 @@ class DistanceOverlay:
             )
 
 
+class HitFlashOverlay:
+    """Expanding ring at each recent point of contact."""
+
+    def draw(self, screen: Surface, hits: Sequence[Tuple[float, float, float, int]],
+             field_to_screen) -> None:
+        for age, x, y, player_id in hits:
+            # Expands well past the reach circle, so the burst never reads
+            # as just another ring around the player
+            radius = int(4 + age * 44)
+            fade = 1.0 - age
+            base = RED if player_id == 0 else BLUE
+            color = tuple(int(c + (255 - c) * fade) for c in base)
+            width = 3 if fade > 0.4 else 2
+            pygame.draw.circle(screen, color, field_to_screen(x, y), radius, width)
+
+
 class CommentaryOverlay:
     """Draws the play-by-play feed - most recent event first, fading down."""
 
@@ -291,7 +314,8 @@ class RecordFlashOverlay:
     """Announces a new longest-rally record across the middle of the court."""
 
     def draw(self, screen: Surface, rally: int, center_x: int, y: int, font) -> None:
-        text = font.render(f"NEW RECORD!  {rally} RALLIES", True, ORANGE)
+        unit = "RALLY" if rally == 1 else "RALLIES"
+        text = font.render(f"NEW RECORD!  {rally} {unit}", True, ORANGE)
         rect = text.get_rect(center=(center_x, y))
         surf = pygame.Surface((rect.width + 24, rect.height + 12))
         surf.set_alpha(190)
@@ -741,8 +765,9 @@ class DebugRenderer(GameRenderer):
         if input_state and input_state.show_trajectory:
             self.trajectory.draw(self.screen, self.config, self.field_to_screen)
 
-        self._draw_ball(game)
         self._draw_players(game)
+        self._draw_hit_flash(stats)
+        self._draw_ball(game)
 
         # Controller input displays (left and right edges)
         if actions:

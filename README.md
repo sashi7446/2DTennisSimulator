@@ -9,6 +9,7 @@ AIエージェント同士が対戦しながら学習していく過程を観察
 
 - AI vs AI のリアルタイム対戦観戦
 - 実況ログ・ラリーカウンター・最長ラリー記録の表示
+- 打球音とヒットエフェクト（音源ファイル不要・numpyで合成）
 - スマホで観れるリプレイビューア（GitHub Pages / サーバー不要）
 - Policy Gradient（REINFORCE）による学習エージェント
 - 学習過程をグラフで可視化（デバッグモード）
@@ -60,6 +61,9 @@ python main.py --agent-a neural --agent-b chase --debug
 
 # ボール速度・勝利ポイント変更
 python main.py --speed 7.0 --points 21
+
+# 消音（オーディオデバイスが無い環境では自動的に無音）
+python main.py --mute
 ```
 
 ### キー操作
@@ -245,6 +249,7 @@ Config(reward_rally=0.0, reward_in_area=0.0, reward_step=0.0)
 ├── renderer.py      # Pygame描画（デバッグオーバーレイ含む）
 ├── env.py           # Gymnasium環境
 ├── debug.py         # デバッグログ・バリデーション
+├── audio.py         # 効果音の合成（numpy波形生成）
 ├── record_replay.py # リプレイ録画（docs/replay.js を生成）
 ├── docs/            # スマホ向けリプレイビューア（GitHub Pages）
 │   ├── index.html   # 単体で動く再生プレイヤー（依存ゼロ）
