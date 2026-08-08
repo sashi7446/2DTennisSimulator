@@ -20,7 +20,9 @@ except ImportError:
 from agents import (
     NEURAL_AVAILABLE,
     Agent,
+    BaselinerAgent,
     ChaseAgent,
+    PositionalAgent,
     RandomAgent,
     SmartChaseAgent,
     load_agent,
@@ -50,6 +52,10 @@ def create_agent(
         agent = SmartChaseAgent()
     elif agent_type == "random":
         agent = RandomAgent()
+    elif agent_type == "baseliner":
+        agent = BaselinerAgent()
+    elif agent_type == "positional":
+        agent = PositionalAgent()
     elif agent_type == "neural":
         if not NEURAL_AVAILABLE:
             print("Warning: NeuralAgent requires numpy. Falling back to ChaseAgent.")
@@ -105,8 +111,7 @@ def run_visual_game(
         print("Install pygame with: pip install pygame")
         return
 
-    # Create components. Stats are tracked in both modes - the play-by-play
-    # feed and rally records are shown in normal mode too.
+    # Stats feed the normal-mode display too, so this is not debug-only
     input_handler = InputHandler(debug_mode=debug)
     stats = StatsTracker()
 
@@ -158,7 +163,11 @@ def run_visual_game(
 
         # print(f"Episode {episode_count} started")
 
-        while input_handler.running and not game.is_game_over:
+        while (
+            input_handler.running
+            and not game.is_game_over
+            and step_count < config.max_steps_per_episode
+        ):
             input_handler.process_events()
 
             # Reset episode if requested
@@ -187,11 +196,9 @@ def run_visual_game(
                 stats.next_frame()
                 frame_count += 1
 
-                # Effects are muted past 2x, where they turn into a rattle
+                # Past 2x the hits pile up into a rattle
                 audible = input_handler.state.speed_level <= SpeedLevel.FAST
 
-                # Play-by-play. Shown in both modes, so it stays outside the
-                # debug branch.
                 hitter = 0 if result.hit_occurred[0] else 1 if result.hit_occurred[1] else None
                 if hitter is not None:
                     stats.log_event(f"{'AB'[hitter]} returns  (rally {game.rally_count})")
@@ -249,6 +256,14 @@ def run_visual_game(
             # Tick with dynamic FPS (0 = no limit)
             target_fps = input_handler.state.target_fps
             renderer.tick(target_fps if target_fps > 0 else 0)
+
+        # A stalled point is not a result, so it must not be scored
+        if not game.is_game_over and step_count >= config.max_steps_per_episode:
+            stats.log_event(f"STALLED  no point in {step_count} steps")
+            print(
+                f"Episode {episode_count} stalled after {step_count} steps "
+                f"(rally {game.rally_count}). Neither agent could end the point."
+            )
 
         # Episode end (skip if reset was requested)
         if game.is_game_over:
@@ -331,6 +346,7 @@ def run_headless_training(
 
     wins = [0, 0]
     rallies: list = []
+    stalled = 0
 
     # Use tqdm progress bar if available
     episode_range = range(1, num_episodes + 1)
@@ -344,15 +360,20 @@ def run_headless_training(
         agent_a.reset()
         agent_b.reset()
 
-        while not game.is_game_over:
+        steps = 0
+        while not game.is_game_over and steps < config.max_steps_per_episode:
             obs = game.get_observation()
             action_a = agent_a.act(obs)
             action_b = agent_b.act(obs)
             result = game.step(action_a, action_b)
             agent_a.learn(result.rewards[0], game.is_game_over)
             agent_b.learn(result.rewards[1], game.is_game_over)
+            steps += 1
 
-        wins[game.winner] += 1
+        if game.is_game_over:
+            wins[game.winner] += 1
+        else:
+            stalled += 1
         rallies.append(game.rally_count)
 
         # Update progress bar description with current stats
@@ -374,6 +395,11 @@ def run_headless_training(
     print(f"\nFinal: A={wins[0]} wins, B={wins[1]} wins")
     if rallies:
         print(f"Rally: longest {max(rallies)}, average {sum(rallies)/len(rallies):.1f}")
+    if stalled:
+        print(
+            f"Stalled: {stalled}/{num_episodes} episodes hit the "
+            f"{config.max_steps_per_episode}-step budget without a point"
+        )
 
     if save_dir:
         _save_agents(agent_a, agent_b, save_dir, num_episodes)
@@ -440,9 +466,11 @@ def run_benchmark(
 def list_agent_types() -> None:
     """Print available agent types."""
     print("\nAvailable agent types:")
-    print("  chase   - Simple ball-chasing AI")
-    print("  smart   - Improved chase with positioning")
-    print("  random  - Random actions (baseline)")
+    print("  chase     - Simple ball-chasing AI")
+    print("  smart     - Improved chase with positioning")
+    print("  baseliner - Defensive baseline play")
+    print("  positional- Position-driven strategy")
+    print("  random    - Random actions (baseline)")
     if NEURAL_AVAILABLE:
         print("  neural      - Learning neural network agent")
         print("  transformer - Advanced Transformer-based agent")
@@ -495,7 +523,7 @@ For more information, see README.md
         default="chase",
         metavar="TYPE",
         help="Agent type for Player A (default: %(default)s)\n"
-        "Built-in types: chase, smart, random, neural, transformer\n"
+        "Built-in types: chase, smart, baseliner, positional, random, neural, transformer\n"
         "Or provide a path to a saved agent directory",
     )
     parser.add_argument(
@@ -504,7 +532,7 @@ For more information, see README.md
         default="chase",
         metavar="TYPE",
         help="Agent type for Player B (default: %(default)s)\n"
-        "Built-in types: chase, smart, random, neural, transformer\n"
+        "Built-in types: chase, smart, baseliner, positional, random, neural, transformer\n"
         "Or provide a path to a saved agent directory",
     )
     parser.add_argument(

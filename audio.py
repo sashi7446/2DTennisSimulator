@@ -26,7 +26,6 @@ BIT_DEPTH = -16
 CHANNELS = 2
 BUFFER_SIZE = 512  # Small buffer keeps hits tight against the visuals
 
-# Hit pitch buckets, from a slow dink to a hard drive
 HIT_FREQUENCIES = (380.0, 470.0, 560.0, 680.0, 820.0)
 
 
@@ -87,7 +86,7 @@ class SoundBank:
             self._hits = [
                 pygame.sndarray.make_sound(_to_stereo(make_hit_wave(f))) for f in HIT_FREQUENCIES
             ]
-            # Rising for a winner, falling for an error
+            # Falling for "out" so an error is audible without looking
             self._point_in = pygame.sndarray.make_sound(_to_stereo(make_chirp_wave((523, 784))))
             self._point_out = pygame.sndarray.make_sound(_to_stereo(make_chirp_wave((392, 262))))
         except (pygame.error, ValueError):

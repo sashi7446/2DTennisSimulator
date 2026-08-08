@@ -1,0 +1,109 @@
+name: Record Replay
+
+# Records a match on GitHub's machine and publishes it to the web viewer.
+# Run it from the GitHub mobile app: Actions -> Record Replay -> Run workflow.
+#
+# Agent names are free text on purpose: a newly written agent works here as
+# soon as create_agent() knows about it, with no change to this file. A path
+# to a saved agent directory (e.g. saved_agents/agent_a_neural) also works.
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent_a:
+        description: "Player A (chase / smart / baseliner / positional / random / neural / transformer, or a saved path)"
+        required: true
+        default: "smart"
+      agent_b:
+        description: "Player B"
+        required: true
+        default: "baseliner"
+      points:
+        description: "Number of points to record"
+        required: true
+        default: "20"
+      ball_speed:
+        description: "Ball speed (blank = config default 15.0). Lower means longer rallies"
+        required: false
+        default: "8"
+      player_speed:
+        description: "Player speed (blank = config default 4.0)"
+        required: false
+        default: "8"
+      reach:
+        description: "Player reach distance (blank = config default 30.0)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+# One recording at a time, so two runs cannot race on docs/replay.js
+concurrency:
+  group: record-replay
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Record the match
+        env:
+          AGENT_A: ${{ inputs.agent_a }}
+          AGENT_B: ${{ inputs.agent_b }}
+          POINTS: ${{ inputs.points }}
+          BALL_SPEED: ${{ inputs.ball_speed }}
+          PLAYER_SPEED: ${{ inputs.player_speed }}
+          REACH: ${{ inputs.reach }}
+        run: |
+          set -euo pipefail
+          args=(--agent-a "$AGENT_A" --agent-b "$AGENT_B" --points "$POINTS")
+          # Plain `[ -n "$X" ] && ...` would abort the whole step under set -e
+          # whenever the value is blank, so use explicit ifs
+          if [ -n "$BALL_SPEED" ]; then args+=(--speed "$BALL_SPEED"); fi
+          if [ -n "$PLAYER_SPEED" ]; then args+=(--player-speed "$PLAYER_SPEED"); fi
+          if [ -n "$REACH" ]; then args+=(--reach "$REACH"); fi
+          python record_replay.py "${args[@]}" | tee recording.log
+
+      - name: Publish to the viewer
+        env:
+          AGENT_A: ${{ inputs.agent_a }}
+          AGENT_B: ${{ inputs.agent_b }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet docs/replay.js; then
+            echo "Replay is identical to the published one - nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/replay.js
+          # [skip ci] keeps this from triggering the test workflow
+          git commit -m "Record $AGENT_A vs $AGENT_B [skip ci]"
+          git push
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## ${{ inputs.agent_a }} vs ${{ inputs.agent_b }}"
+            echo ""
+            echo '```'
+            cat recording.log 2>/dev/null || echo "(recording failed)"
+            echo '```'
+            echo ""
+            echo "Reload the viewer once Pages redeploys (about a minute)."
+          } >> "$GITHUB_STEP_SUMMARY"

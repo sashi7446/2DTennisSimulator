@@ -80,11 +80,11 @@ def record(
     points = []
     for i in range(num_points):
         game = Game(config)
-        point = record_point(game, agent_a, agent_b, config.max_steps_per_point)
+        point = record_point(game, agent_a, agent_b, config.max_steps_per_episode)
         points.append(point)
+        outcome = "AB"[point["w"]] + " wins" if point["w"] >= 0 else "stalled"
         print(
-            f"Point {i + 1}/{num_points}: "
-            f"{'AB'[point['w']] if point['w'] >= 0 else '-'} wins "
+            f"Point {i + 1}/{num_points}: {outcome} "
             f"({point['reason']}, rally {point['rally']}, {len(point['f'])} frames)"
         )
 
@@ -97,6 +97,11 @@ def record(
             [area_b[0], area_b[1], config.area_width, config.area_height],
         ],
         "radii": [config.ball_radius, config.player_radius, config.reach_distance],
+        "meta": {
+            "ball_speed": config.ball_speed,
+            "player_speed": config.player_speed,
+            "reach": config.reach_distance,
+        },
         "fps": config.fps,
         "points": points,
     }
@@ -108,12 +113,18 @@ def main() -> None:
     parser.add_argument("--agent-b", default="smart", help="Agent type for player B")
     parser.add_argument("--points", type=int, default=20, help="Number of points to record")
     parser.add_argument("--speed", type=float, default=None, help="Ball speed override")
+    parser.add_argument("--player-speed", type=float, default=None, help="Player speed override")
+    parser.add_argument("--reach", type=float, default=None, help="Player reach distance override")
     parser.add_argument("--out", default=DEFAULT_OUTPUT, help=f"Output path ({DEFAULT_OUTPUT})")
     args = parser.parse_args()
 
     config = Config()
     if args.speed is not None:
         config.ball_speed = args.speed
+    if args.player_speed is not None:
+        config.player_speed = args.player_speed
+    if args.reach is not None:
+        config.reach_distance = args.reach
 
     replay = record(args.agent_a, args.agent_b, args.points, config)
 

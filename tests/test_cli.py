@@ -39,6 +39,16 @@ class TestCreateAgent(unittest.TestCase):
         agent = create_agent("random", player_id=0, config=self.config)
         self.assertEqual(agent.config.agent_type, "random")
 
+    def test_create_baseliner_agent(self):
+        """Baseliner must be reachable by name, not silently swapped out."""
+        agent = create_agent("baseliner", player_id=0, config=self.config)
+        self.assertEqual(agent.config.agent_type, "baseliner")
+
+    def test_create_positional_agent(self):
+        """Positional must be reachable by name, not silently swapped out."""
+        agent = create_agent("positional", player_id=1, config=self.config)
+        self.assertEqual(agent.config.agent_type, "positional")
+
     def test_create_neural_agent(self):
         """Test creating a neural agent (if numpy available)."""
         from agents import NEURAL_AVAILABLE
@@ -202,6 +212,8 @@ class TestListAgentTypes(unittest.TestCase):
         # Check that common agent types are listed
         self.assertIn("chase", output_text)
         self.assertIn("smart", output_text)
+        self.assertIn("baseliner", output_text)
+        self.assertIn("positional", output_text)
         self.assertIn("random", output_text)
         self.assertIn("neural", output_text)
         self.assertIn("transformer", output_text)

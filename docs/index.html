@@ -26,7 +26,8 @@
     max-width: 720px;
     margin-inline: auto;
   }
-  h1 { font-size: 15px; font-weight: 600; margin: 0 0 10px; color: var(--dim); }
+  h1 { font-size: 15px; font-weight: 600; margin: 0 0 2px; color: var(--dim); }
+  .meta { font-size: 12px; color: var(--dim); opacity: .7; margin-bottom: 10px; min-height: 18px; }
   .score {
     display: flex; align-items: center; justify-content: center; gap: 14px;
     font-variant-numeric: tabular-nums; margin-bottom: 10px;
@@ -64,6 +65,7 @@
 <body>
 
 <h1>2D Tennis Simulator — Replay</h1>
+<div class="meta" id="meta"></div>
 
 <div class="score">
   <div class="side a"><span class="name" id="nameA">A</span><span class="num" id="scoreA">0</span></div>
@@ -120,6 +122,11 @@
 
   document.getElementById("nameA").textContent = R.names[0];
   document.getElementById("nameB").textContent = R.names[1];
+
+  if (R.meta) {
+    document.getElementById("meta").textContent =
+      `ball ${R.meta.ball_speed} · player ${R.meta.player_speed} · reach ${R.meta.reach}`;
+  }
 
   // --- layout -------------------------------------------------------------
   let scale = 1;

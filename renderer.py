@@ -58,7 +58,6 @@ class GameRenderer:
         self.small_font = pygame.font.Font(None, 24)
         self.debug_font = pygame.font.Font(None, 18)
 
-        # Shown in both normal and debug mode
         self.commentary = CommentaryOverlay()
         self.record_flash = RecordFlashOverlay()
         self.hit_flash = HitFlashOverlay()
@@ -808,7 +807,6 @@ class DebugRenderer(GameRenderer):
                 self.debug_font,
             )
 
-        # Play-by-play feed
         self._draw_commentary(stats)
         self._draw_record_flash(stats)
 
