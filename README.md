@@ -5,6 +5,8 @@ AIエージェント同士が対戦しながら学習していく過程を観察
 
 **[English README](README_en.md)**
 
+**▶ 試合を観る（スマホ対応）: https://sashi7446.github.io/2DTennisSimulator/**
+
 ## 特徴
 
 - AI vs AI のリアルタイム対戦観戦
@@ -68,6 +70,23 @@ python main.py --speed 7.0 --points 21
 python main.py --mute
 ```
 
+### 画面の見方（デスクトップ版）
+
+| 表示 | 意味 |
+|------|------|
+| 赤い丸（左） / 青い丸（右） | Player A / Player B |
+| 丸のまわりの薄い円 | リーチ範囲。ここにボールが入らないと打ち返せない |
+| 明るい黄色のボール | イン状態。壁に当たれば打った側の**得点** |
+| 暗い黄色のボール | 未通過。壁に当たれば打った側の**失点**（アウト） |
+| 打点から広がるリング | そのフレームで打ち返した |
+| 左下のログ | 実況。新しいものが上、古いものほど薄くなる |
+| `Rally: 3 (best 12)` | 現在の往復数と、起動してからの最長記録 |
+| `NEW RECORD! 12 RALLIES` | 最長ラリー更新 |
+| `Game Over! Player B wins! (in)` | 決着と、その理由（`in` = 決めた / `out` = ミス） |
+
+音は打球速度でピッチが変わり、**ポイントは `in` なら上昇音、`out` なら下降音**が鳴ります。
+`--mute` で消音、オーディオデバイスが無い環境では自動的に無音になります。
+
 ### キー操作
 
 | キー | 動作 |
@@ -116,28 +135,12 @@ python main.py --agent-a saved/champion_v1 --agent-b saved/champion_v2
 
 ## スマホで観る（リプレイビューア）
 
-試合を録画して、静的HTMLで再生できます。サーバー不要・GitHub Pages で公開できます。
+**https://sashi7446.github.io/2DTennisSimulator/**
 
-```bash
-# 試合を録画 (docs/replay.js が出力される)
-python record_replay.py --agent-a chase --agent-b smart --points 20
+録画した試合を静的HTMLで再生します。サーバー不要、pygame も Python も不要。
+iPhone なら Safari の共有 →「ホーム画面に追加」でアプリのように使えます。
 
-# 学習済みエージェントの世代対決も録れる
-python record_replay.py --agent-a saved/gen_050 --agent-b saved/gen_001 --points 30
-```
-
-`docs/index.html` をブラウザで開けばそのまま再生できます（`file://` でも動作）。
-GitHub Pages で公開する場合は **Settings → Pages → Source: main / docs** を選択。
-
-### スマホから対戦カードを指定して録画する
-
-GitHubアプリで **Actions → Record Replay → Run workflow** を開くと、
-対戦カードとボール速度などを入力して録画を実行できます。
-1分ほどで Pages が更新され、そのままスマホで観れます。
-
-エージェント名は選択式ではなく自由入力です。`create_agent()` に新しいAIを
-追加すれば、ワークフローを書き換えずにその名前で指定できます。
-保存済みエージェントのパス（`saved_agents/agent_a_neural` など）も同様に使えます。
+### 操作
 
 | 操作 | 動作 |
 |------|------|
@@ -145,10 +148,75 @@ GitHubアプリで **Actions → Record Replay → Run workflow** を開くと�
 | ⏮ / ⏭ | 前 / 次のポイント |
 | 1.0x | 再生速度（1.0x → 2.0x → 0.5x） |
 
-ヘッダにはその試合を録った設定（ボール速度・プレイヤー速度・リーチ）が表示されます。
+ポイントが決まると自動で次のポイントへ進みます。
 
-記録されるのはボール・プレイヤーの座標と打球イベントのみ（1ポイントあたり数KB）。
-再生側は canvas で描き直しているため、pygame も Python も不要です。
+### 画面の見方
+
+| 表示 | 意味 |
+|------|------|
+| 🔴 赤い丸（左） | Player A |
+| 🔵 青い丸（右） | Player B |
+| 丸のまわりの薄い円 | リーチ範囲。**ここにボールが入らないと打ち返せない** |
+| 中央の明るい四角 | インエリア |
+| 明るい黄色のボール | イン状態。打ち返せる／壁に当たれば打った側の**得点** |
+| 暗い黄色のボール | まだインエリアを通過していない。壁に当たれば打った側の**失点**（アウト） |
+| ボールの尾 | 直近の軌跡 |
+| 打点から広がる白いリング | そのフレームで打ち返した |
+| ヘッダの `ball 8 · player 8 · reach 30` | その試合を録った設定 |
+| `Point 3/20  Rally 12` | ポイント番号と、現時点までの往復数 |
+| 🔥 LONGEST RALLY | そのポイントが録画中の最長ラリー |
+| `SmartChaseBot WINS (IN)` | 決着。`IN` は決めて得点、`OUT` はミスで失点 |
+
+上下のスコアは、それまでのポイントの勝敗を積み上げたものです。
+
+## 試合を録画する
+
+### スマホから（GitHub Actions）
+
+GitHubアプリまたはブラウザで **Actions → Record Replay → Run workflow** を開き、
+対戦カードなどを入力して実行します。GitHub側でPythonが走り、
+1分ほどで上のページが更新されます。
+
+| 入力 | 内容 |
+|------|------|
+| `agent_a` / `agent_b` | 対戦させるAIの名前、または保存済みエージェントのパス |
+| `points` | 録画するポイント数 |
+| `ball_speed` | ボール速度（空欄でデフォルト15.0）。**小さいほどラリーが続く** |
+| `player_speed` | プレイヤー速度（空欄でデフォルト4.0） |
+| `reach` | リーチ距離（空欄でデフォルト30.0） |
+
+**エージェント名は選択式ではなく自由入力です。** 新しいAIを書いて `create_agent()` に
+追加すれば、ワークフローを編集せずその名前で指定できます。
+
+### ローカルから
+
+```bash
+# 録画すると docs/replay.js が生成される
+python record_replay.py --agent-a smart --agent-b baseliner --points 20
+
+# ラリーが続く設定で録る
+python record_replay.py --agent-a smart --agent-b smart --speed 8 --player-speed 8
+
+# 学習済みエージェントの世代対決
+python record_replay.py --agent-a saved/gen_050 --agent-b saved/gen_001 --points 30
+```
+
+`docs/index.html` をブラウザで開けばそのまま再生できます（`file://` でも動作）。
+公開するには `docs/replay.js` をコミットして push してください。
+
+> GitHub Pages の設定は **Settings → Pages → Source: main / docs**。
+
+### 組み合わせによる試合の質
+
+デフォルト設定はボールが速すぎてプレイヤーが追いつけず、ラリーが2往復ほどで終わります。
+`--speed 8 --player-speed 8` を付けると平均20往復以上まで伸びます。
+
+なお `baseliner` 同士は守備的すぎてポイントが決まらず、
+`Config.max_steps_per_episode`（5000ステップ）で打ち切られます。
+
+記録されるのはボール・プレイヤーの座標と打球イベントのみ。
+サイズはラリーの長さ次第で、1ポイントあたり数KB（短い決着）〜20KB程度（長いラリー）です。
+再生側は canvas で描き直しています。
 
 ## Gymnasium環境
 
