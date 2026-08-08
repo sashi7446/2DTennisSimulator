@@ -50,12 +50,13 @@ python main.py --mode list
 | Type | Description |
 |------|-------------|
 | `chase` | Simple ball-chasing AI (default) |
-| `smart` | Improved chase with better positioning |
+| `smart` | Chase plus a 10-frame extrapolation; no depth strategy |
 | `random` | Random actions (baseline comparison) |
 | `neural` | Policy Gradient neural network agent |
 | `transformer` | Advanced Transformer-based model |
 | `baseliner` | Defensive baseline strategy |
 | `positional` | Position-aware tactical agent |
+| `intercept` | Moves to a reachable interception point, recovers to deep centre |
 
 ## Usage
 

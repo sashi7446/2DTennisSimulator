@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Record Replay` workflow: pick the matchup from the GitHub mobile app and publish to Pages
 - `record_replay.py` accepts `--player-speed` and `--reach`; the viewer shows the settings used
 - `Config.max_steps_per_episode`, a run-loop budget for points that never end
+- `intercept` agent: predicts a reachable interception point, recovers to deep
+  centre between rallies and stays on its own half
+- `Agent.set_physics()` hook so agents can be told the real movement values
+  without importing Config
 - Progress bar display using `tqdm` for headless training mode
 - Enhanced help text for CLI with detailed examples and descriptions
 - This CHANGELOG.md file to track project changes
@@ -40,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Event log entries no longer carry a frame-number prefix (the state panel already shows it)
 
 ### Fixed
+- Corrected the `smart` agent description: it adds a 10-frame extrapolation to
+  chasing and has no depth strategy
 - `baseliner` and `positional` are selectable again; `create_agent()` silently
   substituted ChaseAgent for both
 - Two defensive agents could rally forever: the engine restarts a point that

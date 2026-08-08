@@ -42,9 +42,10 @@ python main.py --mode list
 | タイプ | 説明 |
 |--------|------|
 | `chase` | ボールを追いかけるシンプルなAI（デフォルト） |
-| `smart` | 位置取りを考慮した改良版チェイスAI |
+| `smart` | チェイスに10フレーム先の外挿を足しただけ。前後の戦略はない |
 | `baseliner` | 守備的にベースライン付近で拾い続けるAI |
 | `positional` | 位置取り優先のAI |
+| `intercept` | 到達可能な迎撃点へ先回りし、空いたら後方センターへ戻る |
 | `random` | ランダム行動（ベースライン比較用） |
 | `neural` | Policy Gradientで学習するニューラルネットワークAI |
 | `transformer` | Attention機構を用いた高度なモデル（Transformer） |

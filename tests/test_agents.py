@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.base import AgentConfig, get_agent_class, load_agent
 from agents.baseliner import BaselinerAgent
 from agents.chase import ChaseAgent, SmartChaseAgent
+from agents.intercept import InterceptAgent
 from agents.positional import PositionalAgent
 from agents.random_agent import RandomAgent
 
@@ -144,6 +145,96 @@ class TestRandomAgent(unittest.TestCase):
         self.assertIn("name", info)
         self.assertIn("type", info)
         self.assertIn("strategy", info)
+
+
+class TestInterceptAgent(unittest.TestCase):
+    """Test InterceptAgent class."""
+
+    def setUp(self):
+        self.agent = InterceptAgent()
+        self.agent.set_player_id(1)
+        self.agent.set_field_dimensions(800.0, 400.0)
+        self.obs = create_sample_observation()
+
+    def test_init(self):
+        """Test InterceptAgent initialization."""
+        self.assertEqual(self.agent.config.name, "Interceptor")
+        self.assertEqual(self.agent.config.agent_type, "intercept")
+
+    def test_act_returns_valid_action(self):
+        """Test that act returns valid action tuple."""
+        movement, angle = self.agent.act(self.obs)
+        self.assertIsInstance(movement, int)
+        self.assertIsInstance(angle, float)
+        self.assertGreaterEqual(movement, 0)
+        self.assertLessEqual(movement, 16)
+
+    def test_set_physics_overrides_defaults(self):
+        """Test that real config values replace the assumed defaults."""
+        self.agent.set_physics(7.5, 45.0, (100.0, 150.0, 200.0))
+        self.assertEqual(self.agent.player_speed, 7.5)
+        self.assertEqual(self.agent.reach_distance, 45.0)
+        self.assertEqual(self.agent.area_width, 100.0)
+
+    def test_defensive_home_is_deep_centre(self):
+        """Home is behind the in-area, centred vertically."""
+        home_x, home_y = self.agent._defensive_home()
+        self.assertEqual(home_y, 200.0)
+        self.assertGreater(home_x, 400.0)
+
+        agent_a = InterceptAgent()
+        agent_a.set_player_id(0)
+        self.assertLess(agent_a._defensive_home()[0], 400.0)
+
+    def test_never_targets_the_opponent_half(self):
+        """Crossing the net gains nothing - the ball is only returnable at home."""
+        self.obs["ball_x"] = 60.0
+        self.obs["ball_y"] = 200.0
+        self.obs["ball_vx"] = -12.0
+        self.obs["ball_vy"] = 0.0
+        self.obs["player_b_x"] = 410.0
+
+        movement, _ = self.agent.act(self.obs)
+        # Directions 4-12 point left; player B must not head further left of centre
+        self.assertNotIn(movement, range(5, 12))
+
+    def test_recovers_home_when_ball_is_unreachable(self):
+        """A ball travelling away leaves nothing to intercept."""
+        self.obs["ball_vx"] = -15.0
+        self.obs["ball_vy"] = 0.0
+        self.obs["player_b_x"] = 762.5
+        self.obs["player_b_y"] = 40.0
+
+        movement, _ = self.agent.act(self.obs)
+        # Home is at y=200, below the player, so the heading must be downward
+        self.assertIn(movement, range(1, 8))
+
+    def test_moves_ahead_of_the_ball_not_at_it(self):
+        """The whole point: aim where the ball will be returnable."""
+        self.obs.update(
+            {
+                "ball_x": 300.0,
+                "ball_y": 100.0,
+                "ball_vx": 15.0,
+                "ball_vy": 6.0,
+                "ball_is_in": False,
+                "player_b_x": 762.5,
+                "player_b_y": 200.0,
+            }
+        )
+        target = self.agent._interception(762.5, 200.0, self.obs)
+        self.assertIsNotNone(target)
+        # The ball is above the player now but drops below it on the way in
+        self.assertGreater(target[0], 300.0)
+        self.assertGreater(target[1], 100.0)
+
+    def test_learn_does_not_crash(self):
+        """Test that learn method does not crash."""
+        self.agent.learn(1.0, False)
+
+    def test_reset_does_not_crash(self):
+        """Test that reset method does not crash."""
+        self.agent.reset()
 
 
 class TestChaseAgent(unittest.TestCase):

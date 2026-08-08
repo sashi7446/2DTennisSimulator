@@ -7,6 +7,7 @@ Provides a unified interface for different AI agents.
 from agents.base import Agent, AgentConfig, load_agent
 from agents.baseliner import BaselinerAgent
 from agents.chase import ChaseAgent, SmartChaseAgent
+from agents.intercept import InterceptAgent
 from agents.positional import PositionalAgent
 from agents.random_agent import RandomAgent
 
@@ -28,6 +29,7 @@ __all__ = [
     "ChaseAgent",
     "SmartChaseAgent",
     "RandomAgent",
+    "InterceptAgent",
     "PositionalAgent",
     "BaselinerAgent",
     "NeuralAgent",
