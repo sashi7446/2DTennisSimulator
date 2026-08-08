@@ -4,9 +4,14 @@ A simulator where AI agents compete and learn from each other in a simplified 2D
 
 **[日本語版 README はこちら](README.md)**
 
+**▶ Watch matches (works on phones): https://sashi7446.github.io/2DTennisSimulator/**
+
 ## Features
 
 - Real-time AI vs AI matches with visualization
+- Play-by-play commentary, rally counter and longest-rally records
+- Synthesised hit sounds and impact effects (no audio assets)
+- Replay viewer playable on a phone via GitHub Pages, no server
 - Policy Gradient (REINFORCE) learning agents
 - Live reward graphs and debug overlays
 - Agent save/load functionality
@@ -68,7 +73,26 @@ python main.py --agent-a neural --agent-b chase --debug
 
 # Adjust ball speed and game parameters
 python main.py --speed 7.0
+
+# Mute sound (already silent when no audio device is available)
+python main.py --mute
 ```
+
+### Reading the Screen
+
+| Element | Meaning |
+|---------|---------|
+| Red circle (left) / blue circle (right) | Player A / Player B |
+| Faint circle around a player | Reach. The ball must enter it to be returnable |
+| Bright yellow ball | In. Hitting a wall now **scores** for whoever hit it |
+| Dim yellow ball | Has not passed through an in-area. Hitting a wall **loses** the point (out) |
+| Expanding ring | A return happened on that frame |
+| Log at the bottom left | Play-by-play, newest first, fading with age |
+| `Rally: 3 (best 12)` | Current rally length and the longest so far this session |
+| `Game Over! Player B wins! (in)` | Result and why it ended (`in` = winner, `out` = error) |
+
+Hit sounds are pitched by ball speed, and the point sting rises for `in` and
+falls for `out`.
 
 ### Keyboard Controls
 
@@ -114,6 +138,60 @@ python main.py --agent-a my_agents/agent_a_neural --agent-b chase
 # Match between saved agents
 python main.py --agent-a saved/champion_v1 --agent-b saved/champion_v2
 ```
+
+## Watch on a Phone (Replay Viewer)
+
+**https://sashi7446.github.io/2DTennisSimulator/**
+
+Recorded matches play back in a static HTML page. No server, no pygame, no
+Python on the viewing device.
+
+| Control | Action |
+|---------|--------|
+| Tap the court | Play / pause |
+| ⏮ / ⏭ | Previous / next point |
+| 1.0x | Playback speed (1.0x → 2.0x → 0.5x) |
+
+The header shows the settings the match was recorded with, and a
+🔥 LONGEST RALLY badge marks the longest rally in the recording.
+
+### Recording from a phone (GitHub Actions)
+
+Open **Actions → Record Replay → Run workflow** in the GitHub app or browser,
+fill in the matchup, and the page updates about a minute later.
+
+| Input | Meaning |
+|-------|---------|
+| `agent_a` / `agent_b` | Agent name, or a path to a saved agent |
+| `points` | Number of points to record |
+| `ball_speed` | Ball speed (blank = 15.0). Lower means longer rallies |
+| `player_speed` | Player speed (blank = 4.0) |
+| `reach` | Reach distance (blank = 30.0) |
+
+Agent names are free text, not a dropdown: a new agent becomes selectable as
+soon as `create_agent()` knows about it, with no change to the workflow.
+
+### Recording locally
+
+```bash
+# Writes docs/replay.js
+python record_replay.py --agent-a smart --agent-b baseliner --points 20
+
+# Settings that keep rallies alive
+python record_replay.py --agent-a smart --agent-b smart --speed 8 --player-speed 8
+```
+
+Open `docs/index.html` directly (it works over `file://` too), or commit
+`docs/replay.js` to publish. Pages is served from **Settings → Pages →
+Source: main / docs**.
+
+A replay stores only positions and hit events - a few KB per point for quick
+points, around 20 KB for long rallies.
+
+At default settings the ball outruns the players and rallies end after about
+two exchanges; `--speed 8 --player-speed 8` pushes the average past twenty.
+Two `baseliner` agents never finish a point and stop at the
+`Config.max_steps_per_episode` budget.
 
 ## Gymnasium Integration
 
@@ -232,6 +310,11 @@ Config(reward_rally=0.0, reward_in_area=0.0, reward_step=0.0)
 ├── renderer.py      # Pygame rendering (with debug overlays)
 ├── env.py           # Gymnasium environments
 ├── debug.py         # Debug logging and validation
+├── audio.py         # Synthesised sound effects (numpy waveforms)
+├── record_replay.py # Records matches into docs/replay.js
+├── docs/            # Phone-friendly replay viewer (GitHub Pages)
+│   ├── index.html   # Self-contained player, no dependencies
+│   └── replay.js    # Recorded match data (generated)
 ├── agents/          # Agent implementations
 │   ├── __init__.py
 │   ├── base.py      # Base class (save/load)
@@ -275,6 +358,8 @@ class MyAgent(Agent):
 ```
 
 Register in `agents/__init__.py` and add to `create_agent()` in `main.py`.
+Once `create_agent()` knows the name, the **Record Replay** workflow accepts it
+too - no workflow edit needed.
 
 ## Debug Mode Features
 
