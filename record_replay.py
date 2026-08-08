@@ -9,8 +9,10 @@ local server and no fetch/CORS setup.
 """
 
 import argparse
+import hashlib
 import json
 import os
+import re
 from typing import Any, Dict, List
 
 from config import Config
@@ -18,6 +20,7 @@ from game import Game
 from main import create_agent
 
 DEFAULT_OUTPUT = "docs/replay.js"
+VIEWER_PAGE = "docs/index.html"
 
 # Frames kept per point. Two defensive agents may never end a point, and at
 # the engine budget of 5000 that produced a 4 MB replay for a phone to load.
@@ -116,6 +119,39 @@ def record(
     }
 
 
+def stamp_viewer(replay_path: str, page_path: str = VIEWER_PAGE) -> bool:
+    """Point the viewer at a versioned replay URL.
+
+    GitHub Pages and phone browsers happily serve a cached replay.js after a
+    new recording is published, which looks like the recording never ran.
+    Hashing the file into the query string gives each recording its own URL.
+
+    Returns True when the page changed.
+    """
+    if not os.path.exists(page_path):
+        return False
+
+    with open(replay_path, "rb") as f:
+        version = hashlib.sha256(f.read()).hexdigest()[:8]
+
+    with open(page_path, encoding="utf-8") as f:
+        page = f.read()
+
+    src = os.path.basename(replay_path)
+    updated = re.sub(
+        rf'<script src="{re.escape(src)}(\?v=[0-9a-f]+)?"></script>',
+        f'<script src="{src}?v={version}"></script>',
+        page,
+        count=1,
+    )
+    if updated == page:
+        return False
+
+    with open(page_path, "w", encoding="utf-8") as f:
+        f.write(updated)
+    return True
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Record a replay for the web viewer.")
     parser.add_argument("--agent-a", default="chase", help="Agent type for player A")
@@ -147,6 +183,9 @@ def main() -> None:
         f.write("window.REPLAY = ")
         json.dump(replay, f, separators=(",", ":"))
         f.write(";\n")
+
+    if stamp_viewer(args.out):
+        print(f"Updated {VIEWER_PAGE} to load the new replay URL")
 
     total_frames = sum(len(p["f"]) for p in replay["points"])
     size_kb = os.path.getsize(args.out) // 1024

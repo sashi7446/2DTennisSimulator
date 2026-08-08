@@ -398,3 +398,54 @@ class TestErrorHandling(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReplayViewerStamp(unittest.TestCase):
+    """Cache-busting version stamp on the viewer page."""
+
+    def setUp(self):
+        from record_replay import stamp_viewer
+
+        self.stamp_viewer = stamp_viewer
+        self.tmp = tempfile.mkdtemp()
+        self.replay = os.path.join(self.tmp, "replay.js")
+        self.page = os.path.join(self.tmp, "index.html")
+        with open(self.replay, "w") as f:
+            f.write("window.REPLAY = {};\n")
+
+    def _write_page(self, tag):
+        with open(self.page, "w") as f:
+            f.write(f"<body>{tag}</body>")
+
+    def _read_page(self):
+        with open(self.page) as f:
+            return f.read()
+
+    def test_adds_version_to_plain_tag(self):
+        self._write_page('<script src="replay.js"></script>')
+        self.assertTrue(self.stamp_viewer(self.replay, self.page))
+        self.assertRegex(self._read_page(), r'src="replay\.js\?v=[0-9a-f]{8}"')
+
+    def test_replaces_an_existing_version(self):
+        self._write_page('<script src="replay.js?v=deadbeef"></script>')
+        self.stamp_viewer(self.replay, self.page)
+        self.assertNotIn("deadbeef", self._read_page())
+
+    def test_same_content_keeps_the_same_version(self):
+        self._write_page('<script src="replay.js"></script>')
+        self.stamp_viewer(self.replay, self.page)
+        first = self._read_page()
+        self.assertFalse(self.stamp_viewer(self.replay, self.page))
+        self.assertEqual(first, self._read_page())
+
+    def test_new_content_changes_the_version(self):
+        self._write_page('<script src="replay.js"></script>')
+        self.stamp_viewer(self.replay, self.page)
+        first = self._read_page()
+        with open(self.replay, "w") as f:
+            f.write("window.REPLAY = {\"points\": []};\n")
+        self.assertTrue(self.stamp_viewer(self.replay, self.page))
+        self.assertNotEqual(first, self._read_page())
+
+    def test_missing_page_is_not_an_error(self):
+        self.assertFalse(self.stamp_viewer(self.replay, os.path.join(self.tmp, "nope.html")))

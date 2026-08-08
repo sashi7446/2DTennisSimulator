@@ -203,7 +203,8 @@ python record_replay.py --agent-a saved/gen_050 --agent-b saved/gen_001 --points
 ```
 
 `docs/index.html` をブラウザで開けばそのまま再生できます（`file://` でも動作）。
-公開するには `docs/replay.js` をコミットして push してください。
+公開するには `docs/replay.js` と `docs/index.html` をコミットして push してください
+（録画時に `index.html` の読み込みURLへ内容ハッシュが付与されるため、両方必要です）。
 
 > GitHub Pages の設定は **Settings → Pages → Source: main / docs**。
 

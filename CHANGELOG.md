@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   centre between rallies and stays on its own half
 - `Agent.set_physics()` hook so agents can be told the real movement values
   without importing Config
+- Recording stamps a content hash onto the viewer's replay URL, so a published
+  recording is not hidden behind a cached replay.js
 - Progress bar display using `tqdm` for headless training mode
 - Enhanced help text for CLI with detailed examples and descriptions
 - This CHANGELOG.md file to track project changes

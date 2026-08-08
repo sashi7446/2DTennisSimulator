@@ -3,11 +3,10 @@ name: CI
 on:
   push:
     branches: [main, master]
-    # Recorded replays are data, not code. Skipping them here means the
-    # Record Replay workflow does not need [skip ci], which would also
-    # suppress the Pages build and leave the site stale.
+    # Nothing under docs/ is covered by pytest or ruff, and recorded
+    # replays land there on every recording.
     paths-ignore:
-      - "docs/replay.js"
+      - "docs/**"
   pull_request:
     branches: [main, master]
 
