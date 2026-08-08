@@ -165,7 +165,7 @@ fill in the matchup, and the page updates about a minute later.
 | `agent_a` / `agent_b` | Agent name, or a path to a saved agent |
 | `points` | Number of points to record |
 | `ball_speed` | Ball speed (blank = 15.0). Lower means longer rallies |
-| `player_speed` | Player speed (blank = 4.0) |
+| `player_speed` | Player speed (blank = 4.0). **Raising it makes anticipation pointless** |
 | `reach` | Reach distance (blank = 30.0) |
 
 Agent names are free text, not a dropdown: a new agent becomes selectable as
@@ -177,8 +177,8 @@ soon as `create_agent()` knows about it, with no change to the workflow.
 # Writes docs/replay.js
 python record_replay.py --agent-a smart --agent-b baseliner --points 20
 
-# Settings that keep rallies alive
-python record_replay.py --agent-a smart --agent-b smart --speed 8 --player-speed 8
+# Longer rallies - lower the ball speed only, see the warning below
+python record_replay.py --agent-a smart --agent-b smart --speed 8
 ```
 
 Open `docs/index.html` directly (it works over `file://` too), or commit
@@ -188,10 +188,18 @@ Source: main / docs**.
 A replay stores only positions and hit events - a few KB per point for quick
 points, around 20 KB for long rallies.
 
-At default settings the ball outruns the players and rallies end after about
-two exchanges; `--speed 8 --player-speed 8` pushes the average past twenty.
-Two `baseliner` agents never finish a point and stop at the
-`Config.max_steps_per_episode` budget.
+**Do not raise `player_speed`.** A player speed of 4 against a ball speed of 15
+is what forces agents to anticipate instead of react, which is the behaviour
+this project exists to observe. At player speed 8 chasing the ball is enough,
+and `chase`'s win rate against `smart` climbs from 3% to 18%. Ball speed 8
+combined with player speed 8 means points never end at all.
+
+To lengthen rallies, lower the ball speed only and leave player speed at 4.0:
+`smart vs smart` averages 3.1 exchanges at ball 15, 5.0 at ball 12 and 7.5 at
+ball 8.
+
+Two `baseliner` agents never finish a point even at default settings.
+Recording stops after 1800 frames per point and warns when that happens.
 
 ## Gymnasium Integration
 
@@ -249,16 +257,16 @@ Config(
     field_height=400,
 
     # In-area settings
-    area_width=150,
-    area_height=100,
-    area_gap=100,
+    area_width=200,
+    area_height=300,
+    area_gap=250,
 
     # Ball physics
-    ball_speed=5.0,
+    ball_speed=15.0,
     serve_angle_range=15.0,
 
     # Player attributes
-    player_speed=3.0,
+    player_speed=4.0,
     reach_distance=30.0,
 
     # Rewards (see Reward Triggers below)

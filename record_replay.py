@@ -10,6 +10,7 @@ local server and no fetch/CORS setup.
 
 import argparse
 import json
+import os
 from typing import Any, Dict, List
 
 from config import Config
@@ -17,6 +18,10 @@ from game import Game
 from main import create_agent
 
 DEFAULT_OUTPUT = "docs/replay.js"
+
+# Frames kept per point. Two defensive agents may never end a point, and at
+# the engine budget of 5000 that produced a 4 MB replay for a phone to load.
+DEFAULT_MAX_STEPS = 1800
 
 
 def record_point(game: Game, agent_a: Any, agent_b: Any, max_steps: int) -> Dict[str, Any]:
@@ -71,7 +76,11 @@ def record_point(game: Game, agent_a: Any, agent_b: Any, max_steps: int) -> Dict
 
 
 def record(
-    agent_a_type: str, agent_b_type: str, num_points: int, config: Config
+    agent_a_type: str,
+    agent_b_type: str,
+    num_points: int,
+    config: Config,
+    max_steps: int = DEFAULT_MAX_STEPS,
 ) -> Dict[str, Any]:
     """Record a series of points into a replay dict."""
     agent_a = create_agent(agent_a_type, 0, config)
@@ -80,7 +89,7 @@ def record(
     points = []
     for i in range(num_points):
         game = Game(config)
-        point = record_point(game, agent_a, agent_b, config.max_steps_per_episode)
+        point = record_point(game, agent_a, agent_b, max_steps)
         points.append(point)
         outcome = "AB"[point["w"]] + " wins" if point["w"] >= 0 else "stalled"
         print(
@@ -115,6 +124,12 @@ def main() -> None:
     parser.add_argument("--speed", type=float, default=None, help="Ball speed override")
     parser.add_argument("--player-speed", type=float, default=None, help="Player speed override")
     parser.add_argument("--reach", type=float, default=None, help="Player reach distance override")
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=DEFAULT_MAX_STEPS,
+        help=f"Frames to record per point (default: {DEFAULT_MAX_STEPS})",
+    )
     parser.add_argument("--out", default=DEFAULT_OUTPUT, help=f"Output path ({DEFAULT_OUTPUT})")
     args = parser.parse_args()
 
@@ -126,7 +141,7 @@ def main() -> None:
     if args.reach is not None:
         config.reach_distance = args.reach
 
-    replay = record(args.agent_a, args.agent_b, args.points, config)
+    replay = record(args.agent_a, args.agent_b, args.points, config, args.max_steps)
 
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("window.REPLAY = ")
@@ -134,7 +149,18 @@ def main() -> None:
         f.write(";\n")
 
     total_frames = sum(len(p["f"]) for p in replay["points"])
-    print(f"\nWrote {args.out}: {len(replay['points'])} points, {total_frames} frames")
+    size_kb = os.path.getsize(args.out) // 1024
+    print(f"\nWrote {args.out}: {len(replay['points'])} points, {total_frames} frames, {size_kb} KB")
+
+    stalled = sum(1 for p in replay["points"] if p["w"] < 0)
+    if stalled:
+        print(
+            f"WARNING: {stalled}/{len(replay['points'])} points never ended. "
+            "These agents cannot finish a point at these settings, so the replay "
+            "is mostly an endless rally."
+        )
+    if size_kb > 1024:
+        print(f"WARNING: {size_kb} KB is a heavy download for a phone.")
 
 
 if __name__ == "__main__":

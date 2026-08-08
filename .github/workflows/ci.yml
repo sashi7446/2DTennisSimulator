@@ -3,6 +3,11 @@ name: CI
 on:
   push:
     branches: [main, master]
+    # Recorded replays are data, not code. Skipping them here means the
+    # Record Replay workflow does not need [skip ci], which would also
+    # suppress the Pages build and leave the site stale.
+    paths-ignore:
+      - "docs/replay.js"
   pull_request:
     branches: [main, master]
 
