@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from typing import TYPE_CHECKING, Any, Deque, Dict, List, Optional, Protocol, Tuple
+from typing import TYPE_CHECKING, Any, Deque, Dict, List, Optional, Protocol, Sequence, Tuple
 
 try:
     import pygame
@@ -56,6 +56,11 @@ class GameRenderer:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
         self.small_font = pygame.font.Font(None, 24)
+        self.debug_font = pygame.font.Font(None, 18)
+
+        self.commentary = CommentaryOverlay()
+        self.record_flash = RecordFlashOverlay()
+        self.hit_flash = HitFlashOverlay()
 
     def field_to_screen(self, x: float, y: float) -> Tuple[int, int]:
         """Convert field coordinates to screen coordinates."""
@@ -107,7 +112,9 @@ class GameRenderer:
             pygame.draw.circle(self.screen, WHITE, pos, int(player.radius), 2)
             pygame.draw.circle(self.screen, reach_color, pos, int(player.reach_distance), 1)
 
-    def _draw_ui(self, game: Game, total_wins: Optional[Tuple[int, int]] = None) -> None:
+    def _draw_ui(
+        self, game: Game, total_wins: Optional[Tuple[int, int]] = None, stats: Any = None
+    ) -> None:
         if total_wins:
             score = self.font.render(
                 f"Total Wins - A: {total_wins[0]}  B: {total_wins[1]}", True, WHITE
@@ -125,24 +132,78 @@ class GameRenderer:
             ),
             (10, 45),
         )
-        self.screen.blit(
-            self.small_font.render(f"Rally: {game.rally_count}", True, WHITE),
-            (self.window_width - 100, 45),
-        )
+
+        rally_text = f"Rally: {game.rally_count}"
+        if stats and stats.longest_rally:
+            rally_text += f"  (best {stats.longest_rally})"
+        rally = self.small_font.render(rally_text, True, WHITE)
+        self.screen.blit(rally, rally.get_rect(topright=(self.window_width - 10, 45)))
 
         if game.state == GameState.GAME_OVER:
-            winner = "A" if game.scores[0] > game.scores[1] else "B"
-            text = self.font.render(f"Game Over! Player {winner} wins!", True, WHITE)
-            rect = text.get_rect(center=(self.window_width // 2, self.window_height // 2))
-            pygame.draw.rect(self.screen, BLACK, rect.inflate(20, 10))
-            self.screen.blit(text, rect)
+            self._draw_game_over(game, stats)
 
-    def render(self, game: Game, total_wins: Optional[Tuple[int, int]] = None) -> None:
-        """Render game state to screen."""
+    def _game_over_label(self, game: Game, stats: Any, prefix: str) -> str:
+        """Result line, with the decisive reason when the tracker knows it."""
+        winner = "A" if game.scores[0] > game.scores[1] else "B"
+        label = f"{prefix} Player {winner} wins!"
+        if stats and stats.last_point_reason:
+            label += f"  ({stats.last_point_reason})"
+        return label
+
+    def _draw_game_over(self, game: Game, stats: Any = None) -> None:
+        """Draw the result banner across the middle of the court."""
+        text = self.font.render(self._game_over_label(game, stats, "Game Over!"), True, WHITE)
+        rect = text.get_rect(center=(self.window_width // 2, self.window_height // 2))
+        pygame.draw.rect(self.screen, BLACK, rect.inflate(20, 10))
+        self.screen.blit(text, rect)
+
+    def _draw_hit_flash(self, stats: Any) -> None:
+        """Draw impact rings for hits from the last few frames."""
+        if stats:
+            self.hit_flash.draw(self.screen, stats.recent_hits(), self.field_to_screen)
+
+    def _draw_commentary(self, stats: Any) -> None:
+        """Draw the play-by-play feed at the bottom-left of the court."""
+        if not stats or not stats.event_log:
+            return
+        court_bottom = self.padding + self.ui_height + self.config.field_height
+        height = len(stats.event_log) * 15 + 8
+        self.commentary.draw(
+            self.screen,
+            list(stats.event_log),
+            self.padding + 10,
+            court_bottom - height - 10,
+            self.debug_font,
+        )
+
+    def _draw_record_flash(self, stats: Any) -> None:
+        """Announce a fresh longest-rally record."""
+        if stats and stats.record_is_fresh():
+            self.record_flash.draw(
+                self.screen,
+                stats.longest_rally,
+                self.window_width // 2,
+                self.padding + self.ui_height + 55,
+                self.font,
+            )
+
+    def render(
+        self, game: Game, total_wins: Optional[Tuple[int, int]] = None, stats: Any = None
+    ) -> None:
+        """Render game state to screen.
+
+        Args:
+            game: Current game state
+            total_wins: (wins_a, wins_b) tuple
+            stats: StatsTracker for the play-by-play feed and rally records
+        """
         self._draw_field(game)
-        self._draw_ball(game)
         self._draw_players(game)
-        self._draw_ui(game, total_wins)
+        self._draw_hit_flash(stats)
+        self._draw_ball(game)
+        self._draw_commentary(stats)
+        self._draw_record_flash(stats)
+        self._draw_ui(game, total_wins, stats)
         pygame.display.flip()
 
     def tick(self, fps: Optional[int] = None) -> None:
@@ -206,6 +267,60 @@ class DistanceOverlay:
                 debug_font.render(text, True, CYAN if can_hit else GRAY),
                 ((ppos[0] + ball_pos[0]) // 2, (ppos[1] + ball_pos[1]) // 2),
             )
+
+
+class HitFlashOverlay:
+    """Expanding ring at each recent point of contact."""
+
+    def draw(self, screen: Surface, hits: Sequence[Tuple[float, float, float, int]],
+             field_to_screen) -> None:
+        for age, x, y, player_id in hits:
+            # Expands well past the reach circle, so the burst never reads
+            # as just another ring around the player
+            radius = int(4 + age * 44)
+            fade = 1.0 - age
+            base = RED if player_id == 0 else BLUE
+            color = tuple(int(c + (255 - c) * fade) for c in base)
+            width = 3 if fade > 0.4 else 2
+            pygame.draw.circle(screen, color, field_to_screen(x, y), radius, width)
+
+
+class CommentaryOverlay:
+    """Draws the play-by-play feed - most recent event first, fading down."""
+
+    def draw(
+        self, screen: Surface, events: Sequence[str], x: int, y: int, font, width: int = 210
+    ) -> None:
+        if not events:
+            return
+
+        line_height = 15
+        height = len(events) * line_height + 8
+        surf = pygame.Surface((width, height))
+        surf.set_alpha(140)
+        surf.fill(BLACK)
+        screen.blit(surf, (x, y))
+
+        for i, event in enumerate(events):
+            shade = int(255 - (200 * i / len(events)))
+            screen.blit(
+                font.render(event, True, (shade, shade, shade)),
+                (x + 6, y + 4 + i * line_height),
+            )
+
+
+class RecordFlashOverlay:
+    """Announces a new longest-rally record across the middle of the court."""
+
+    def draw(self, screen: Surface, rally: int, center_x: int, y: int, font) -> None:
+        unit = "RALLY" if rally == 1 else "RALLIES"
+        text = font.render(f"NEW RECORD!  {rally} {unit}", True, ORANGE)
+        rect = text.get_rect(center=(center_x, y))
+        surf = pygame.Surface((rect.width + 24, rect.height + 12))
+        surf.set_alpha(190)
+        surf.fill(BLACK)
+        screen.blit(surf, (rect.left - 12, rect.top - 6))
+        screen.blit(text, rect)
 
 
 class StatePanelOverlay:
@@ -614,6 +729,8 @@ class DebugRenderer(GameRenderer):
         self.observation_overlay = ObservationOverlay()
         self.action_overlay = ActionOverlay()
         self.reward_overlay = RewardOverlay()
+        self.commentary = CommentaryOverlay()
+        self.record_flash = RecordFlashOverlay()
 
     def render(
         self,
@@ -647,8 +764,9 @@ class DebugRenderer(GameRenderer):
         if input_state and input_state.show_trajectory:
             self.trajectory.draw(self.screen, self.config, self.field_to_screen)
 
-        self._draw_ball(game)
         self._draw_players(game)
+        self._draw_hit_flash(stats)
+        self._draw_ball(game)
 
         # Controller input displays (left and right edges)
         if actions:
@@ -689,9 +807,8 @@ class DebugRenderer(GameRenderer):
                 self.debug_font,
             )
 
-        # Event log
-        if stats and stats.event_log:
-            self._draw_event_log(stats.event_log)
+        self._draw_commentary(stats)
+        self._draw_record_flash(stats)
 
         # Debug panel Y position (below field)
         debug_panel_y = self.padding + self.ui_height + self.config.field_height + self.padding + 5
@@ -741,7 +858,7 @@ class DebugRenderer(GameRenderer):
             self._draw_speed_indicator(input_state, actual_fps)
 
         # UI
-        self._draw_ui(game, total_wins)
+        self._draw_ui(game, total_wins, stats)
 
         # Paused indicator
         if input_state and input_state.paused:
@@ -755,14 +872,6 @@ class DebugRenderer(GameRenderer):
     def update(self, game: Game) -> None:
         """Update overlay state (call each frame when game advances)."""
         self.trajectory.update(game)
-
-    def _draw_event_log(self, event_log: Deque[str]) -> None:
-        x, y = self.window_width - 200, self.padding + self.ui_height + 10
-        for i, ev in enumerate(event_log):
-            alpha = int(255 * (1 - i / len(event_log)))
-            self.screen.blit(
-                self.debug_font.render(ev, True, (alpha, alpha, alpha)), (x, y + i * 14)
-            )
 
     def _draw_controls_help(self) -> None:
         helps = [
@@ -801,35 +910,14 @@ class DebugRenderer(GameRenderer):
                 (self.window_width // 2 + 50, 45),
             )
 
-    def _draw_ui(self, game: Game, total_wins: Optional[Tuple[int, int]] = None) -> None:
-        if total_wins:
-            score = self.font.render(
-                f"Total Wins - A: {total_wins[0]}  B: {total_wins[1]}", True, WHITE
-            )
-        else:
-            score = self.font.render(
-                f"Player A: {game.scores[0]}  -  Player B: {game.scores[1]}", True, WHITE
-            )
-        self.screen.blit(score, score.get_rect(center=(self.window_width // 2, 25)))
+    def _draw_game_over(self, game: Game, stats: Any = None) -> None:
+        """Debug mode keeps the result out of the court, just below the field.
 
-        is_in = game.ball and game.ball.is_in
-        self.screen.blit(
-            self.small_font.render(
-                f"Ball: {'IN' if is_in else 'OUT'}", True, YELLOW if is_in else GRAY
-            ),
-            (10, 45),
-        )
-        self.screen.blit(
-            self.small_font.render(f"Rally: {game.rally_count}", True, WHITE),
-            (self.window_width - 100, 45),
-        )
-
-        if game.state == GameState.GAME_OVER:
-            winner = "A" if game.scores[0] > game.scores[1] else "B"
-            text = self.font.render(f"Episode Over! Player {winner} wins!", True, WHITE)
-            self.screen.blit(
-                text, text.get_rect(center=(self.window_width // 2, self.window_height - 30))
-            )
+        Sitting in the gap above the debug panels leaves the graphs readable.
+        """
+        text = self.font.render(self._game_over_label(game, stats, "Episode Over!"), True, WHITE)
+        court_bottom = self.padding + self.ui_height + self.config.field_height
+        self.screen.blit(text, text.get_rect(center=(self.window_width // 2, court_bottom + 22)))
 
 
 # Backward compatibility aliases

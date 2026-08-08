@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- ENTERTAINMENT_PLAN.md: phased plan for making the simulator fun to watch
+- Static replay viewer (`docs/index.html`) playable on a phone via GitHub Pages
+- `record_replay.py` to record matches into `docs/replay.js`
+- Play-by-play commentary feed shown in both normal and debug mode
+- Longest-rally tracking with an on-screen record announcement
+- `StatsTracker.average_rally` and rally history
+- Headless training now reports longest and average rally length
+- Stats tracker tests (`tests/test_stats_tracker.py`) with 24 tests
+- `audio.py`: procedural sound effects synthesised with numpy, no audio assets
+- Hit sounds pitched by ball speed; point stings rise for `in` and fall for `out`
+- Impact ring effect at each point of contact
+- `--mute` flag to disable sound in visual mode
+- Audio tests (`tests/test_audio.py`) with 16 tests that need no audio device
+- `Record Replay` workflow: pick the matchup from the GitHub mobile app and publish to Pages
+- `record_replay.py` accepts `--player-speed` and `--reach`; the viewer shows the settings used
+- `Config.max_steps_per_episode`, a run-loop budget for points that never end
 - Progress bar display using `tqdm` for headless training mode
 - Enhanced help text for CLI with detailed examples and descriptions
 - This CHANGELOG.md file to track project changes
@@ -19,10 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Improved CLI help output with usage examples and detailed option descriptions
 - Progress feedback now shows win rates during training
-- Test suite expanded from 176 to 203 tests
+- Test suite expanded from 203 to 247 tests
+- Stats are now tracked in normal mode too, not just under `--debug`
+- Event log entries no longer carry a frame-number prefix (the state panel already shows it)
 
 ### Fixed
-- N/A
+- `baseliner` and `positional` are selectable again; `create_agent()` silently
+  substituted ChaseAgent for both
+- Two defensive agents could rally forever: the engine restarts a point that
+  exceeds `max_steps_per_point`, so the run loops now enforce their own budget
+- Debug mode: the event log no longer overlaps the observation minimap
+- Debug mode: the episode result line no longer covers the reward graphs
+- Removed a near-duplicate `_draw_ui` override in `DebugRenderer`
 
 ## [0.2.0] - 2026-01-10
 

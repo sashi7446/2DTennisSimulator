@@ -2,7 +2,7 @@
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, List
+from typing import Deque, List, Optional, Tuple
 
 
 @dataclass
@@ -31,6 +31,12 @@ class StatsTracker:
         self.total_wins = [0, 0]
         self.episode_count = 0
 
+        # Rally tracking
+        self.rally_history: List[int] = []
+        self.longest_rally = 0
+        self.last_point_reason = ""
+        self._record_frame: Optional[int] = None
+
         # Current episode tracking
         self.current_reward_a = 0.0
         self.current_reward_b = 0.0
@@ -47,6 +53,9 @@ class StatsTracker:
         self.event_log: Deque[str] = deque(maxlen=8)
         self.frame_count = 0
 
+        # Recent hits, for the impact effect: (frame, x, y, player_id)
+        self.hit_events: Deque[Tuple[int, float, float, int]] = deque(maxlen=8)
+
     def add_reward(self, reward_a: float, reward_b: float) -> None:
         """Record rewards for current step."""
         self.current_reward_a += reward_a
@@ -55,17 +64,58 @@ class StatsTracker:
         self.cumulative_rewards_b.append(self.current_reward_b)
 
     def log_event(self, message: str) -> None:
-        """Add event to log."""
-        self.event_log.appendleft(f"F{self.frame_count}: {message}")
+        """Add event to the play-by-play log (most recent first)."""
+        self.event_log.appendleft(message)
 
     def next_frame(self) -> None:
         """Advance frame counter."""
         self.frame_count += 1
 
-    def end_episode(self, winner: int) -> None:
-        """Finalize episode statistics."""
+    def log_hit(self, x: float, y: float, player_id: int) -> None:
+        """Record where a hit landed so the renderer can flash it."""
+        self.hit_events.append((self.frame_count, x, y, player_id))
+
+    def recent_hits(self, window_frames: int = 8) -> List[Tuple[float, float, float, int]]:
+        """Hits from the last few frames as (age, x, y, player_id).
+
+        `age` runs 0.0 (just happened) to 1.0 (about to expire), which is
+        all the renderer needs to size and fade the impact ring.
+        """
+        result = []
+        for frame, x, y, player_id in self.hit_events:
+            elapsed = self.frame_count - frame
+            if 0 <= elapsed < window_frames:
+                result.append((elapsed / window_frames, x, y, player_id))
+        return result
+
+    def record_is_fresh(self, duration_frames: int = 120) -> bool:
+        """True shortly after a longest-rally record was set.
+
+        Derived from the frame counter this tracker already owns, so the
+        renderer can stay passive and hold no animation state of its own.
+        """
+        if self._record_frame is None:
+            return False
+        return self.frame_count - self._record_frame < duration_frames
+
+    def end_episode(self, winner: int, rally: int = 0, reason: str = "") -> bool:
+        """Finalize episode statistics.
+
+        Returns:
+            True if this point set a new longest-rally record.
+        """
         self.episode_count += 1
         self.total_wins[winner] += 1
+
+        self.last_point_reason = reason
+        self.rally_history.append(rally)
+        if len(self.rally_history) > self.max_history:
+            self.rally_history = self.rally_history[-self.max_history :]
+
+        is_record = rally > self.longest_rally
+        if is_record:
+            self.longest_rally = rally
+            self._record_frame = self.frame_count
 
         self.episode_rewards_a.append(self.current_reward_a)
         self.episode_rewards_b.append(self.current_reward_b)
@@ -80,6 +130,15 @@ class StatsTracker:
         self.current_reward_b = 0.0
         self.cumulative_rewards_a = []
         self.cumulative_rewards_b = []
+
+        return is_record
+
+    @property
+    def average_rally(self) -> float:
+        """Mean rally length across recorded points."""
+        if not self.rally_history:
+            return 0.0
+        return sum(self.rally_history) / len(self.rally_history)
 
     def get_moving_averages(self, rewards: List[float]) -> List[float]:
         """Calculate moving average over window."""

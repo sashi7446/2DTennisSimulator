@@ -8,6 +8,9 @@ AIエージェント同士が対戦しながら学習していく過程を観察
 ## 特徴
 
 - AI vs AI のリアルタイム対戦観戦
+- 実況ログ・ラリーカウンター・最長ラリー記録の表示
+- 打球音とヒットエフェクト（音源ファイル不要・numpyで合成）
+- スマホで観れるリプレイビューア（GitHub Pages / サーバー不要）
 - Policy Gradient（REINFORCE）による学習エージェント
 - 学習過程をグラフで可視化（デバッグモード）
 - エージェントの保存・読み込み機能
@@ -38,6 +41,8 @@ python main.py --mode list
 |--------|------|
 | `chase` | ボールを追いかけるシンプルなAI（デフォルト） |
 | `smart` | 位置取りを考慮した改良版チェイスAI |
+| `baseliner` | 守備的にベースライン付近で拾い続けるAI |
+| `positional` | 位置取り優先のAI |
 | `random` | ランダム行動（ベースライン比較用） |
 | `neural` | Policy Gradientで学習するニューラルネットワークAI |
 | `transformer` | Attention機構を用いた高度なモデル（Transformer） |
@@ -58,6 +63,9 @@ python main.py --agent-a neural --agent-b chase --debug
 
 # ボール速度・勝利ポイント変更
 python main.py --speed 7.0 --points 21
+
+# 消音（オーディオデバイスが無い環境では自動的に無音）
+python main.py --mute
 ```
 
 ### キー操作
@@ -121,11 +129,23 @@ python record_replay.py --agent-a saved/gen_050 --agent-b saved/gen_001 --points
 `docs/index.html` をブラウザで開けばそのまま再生できます（`file://` でも動作）。
 GitHub Pages で公開する場合は **Settings → Pages → Source: main / docs** を選択。
 
+### スマホから対戦カードを指定して録画する
+
+GitHubアプリで **Actions → Record Replay → Run workflow** を開くと、
+対戦カードとボール速度などを入力して録画を実行できます。
+1分ほどで Pages が更新され、そのままスマホで観れます。
+
+エージェント名は選択式ではなく自由入力です。`create_agent()` に新しいAIを
+追加すれば、ワークフローを書き換えずにその名前で指定できます。
+保存済みエージェントのパス（`saved_agents/agent_a_neural` など）も同様に使えます。
+
 | 操作 | 動作 |
 |------|------|
 | コートをタップ | 再生 / 一時停止 |
 | ⏮ / ⏭ | 前 / 次のポイント |
 | 1.0x | 再生速度（1.0x → 2.0x → 0.5x） |
+
+ヘッダにはその試合を録った設定（ボール速度・プレイヤー速度・リーチ）が表示されます。
 
 記録されるのはボール・プレイヤーの座標と打球イベントのみ（1ポイントあたり数KB）。
 再生側は canvas で描き直しているため、pygame も Python も不要です。
@@ -243,6 +263,7 @@ Config(reward_rally=0.0, reward_in_area=0.0, reward_step=0.0)
 ├── renderer.py      # Pygame描画（デバッグオーバーレイ含む）
 ├── env.py           # Gymnasium環境
 ├── debug.py         # デバッグログ・バリデーション
+├── audio.py         # 効果音の合成（numpy波形生成）
 ├── record_replay.py # リプレイ録画（docs/replay.js を生成）
 ├── docs/            # スマホ向けリプレイビューア（GitHub Pages）
 │   ├── index.html   # 単体で動く再生プレイヤー（依存ゼロ）
@@ -251,8 +272,11 @@ Config(reward_rally=0.0, reward_in_area=0.0, reward_step=0.0)
 │   ├── __init__.py
 │   ├── base.py      # 基底クラス（save/load）
 │   ├── chase.py     # ChaseAgent, SmartChaseAgent
+│   ├── baseliner.py # BaselinerAgent
+│   ├── positional.py    # PositionalAgent
 │   ├── random_agent.py  # RandomAgent
-│   └── neural.py    # NeuralAgent（Policy Gradient）
+│   ├── neural.py    # NeuralAgent（Policy Gradient）
+│   └── transformer.py   # TransformerAgent
 └── tests/           # ユニットテスト（96テスト）
 ```
 
@@ -303,6 +327,9 @@ elif agent_type == "my_new":
 ```bash
 python main.py --agent-a my_new --agent-b chase
 ```
+
+`create_agent` に追加した時点で、GitHub Actions の **Record Replay** からも
+`my_new` と入力するだけで指定できます（ワークフローの編集は不要）。
 
 ---
 

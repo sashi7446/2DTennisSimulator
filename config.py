@@ -36,6 +36,10 @@ class Config:
 
     # Game settings
     max_steps_per_point: int = 1000  # Prevent infinite rallies
+    # Hard budget enforced by the run loops. Exceeding max_steps_per_point
+    # only makes the engine restart the point, so two purely defensive
+    # agents can rally forever - this is what actually stops them.
+    max_steps_per_episode: int = 5000
     # Note: Game engine always ends after 1 point (1 point = 1 episode)
     # Multi-episode tracking is handled by the training loop, not the game engine
 

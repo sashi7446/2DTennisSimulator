@@ -20,7 +20,9 @@ except ImportError:
 from agents import (
     NEURAL_AVAILABLE,
     Agent,
+    BaselinerAgent,
     ChaseAgent,
+    PositionalAgent,
     RandomAgent,
     SmartChaseAgent,
     load_agent,
@@ -50,6 +52,10 @@ def create_agent(
         agent = SmartChaseAgent()
     elif agent_type == "random":
         agent = RandomAgent()
+    elif agent_type == "baseliner":
+        agent = BaselinerAgent()
+    elif agent_type == "positional":
+        agent = PositionalAgent()
     elif agent_type == "neural":
         if not NEURAL_AVAILABLE:
             print("Warning: NeuralAgent requires numpy. Falling back to ChaseAgent.")
@@ -82,6 +88,7 @@ def run_visual_game(
     agent_b: Agent,
     debug: bool = False,
     save_dir: Optional[str] = None,
+    mute: bool = False,
 ) -> None:
     """Run a game with pygame visualization and agent control.
 
@@ -89,12 +96,14 @@ def run_visual_game(
     - InputHandler: processes events, manages pause/step/speed state
     - StatsTracker: tracks rewards, wins, events
     - Renderer: draws game state to screen (passive)
+    - SoundBank: plays synthesised effects (silent if unavailable)
     - Game: runs simulation logic
     """
     import time
 
     try:
-        from input_handler import InputHandler
+        from audio import SoundBank
+        from input_handler import InputHandler, SpeedLevel
         from renderer import DebugRenderer, GameRenderer
         from stats_tracker import StatsTracker
     except ImportError as e:
@@ -102,9 +111,12 @@ def run_visual_game(
         print("Install pygame with: pip install pygame")
         return
 
-    # Create components
+    # Stats feed the normal-mode display too, so this is not debug-only
     input_handler = InputHandler(debug_mode=debug)
-    stats = StatsTracker() if debug else None
+    stats = StatsTracker()
+
+    # Built before the renderer so the mixer gets its buffer settings first
+    sounds = SoundBank(enabled=not mute)
 
     if debug:
         renderer = DebugRenderer(config)
@@ -146,10 +158,16 @@ def run_visual_game(
         last_obs = None
         last_actions = None
         last_rewards = None
+        last_reason = ""
+        final_rally = 0
 
         # print(f"Episode {episode_count} started")
 
-        while input_handler.running and not game.is_game_over:
+        while (
+            input_handler.running
+            and not game.is_game_over
+            and step_count < config.max_steps_per_episode
+        ):
             input_handler.process_events()
 
             # Reset episode if requested
@@ -175,10 +193,30 @@ def run_visual_game(
                 last_actions = (current_action_a, current_action_b)
                 last_rewards = result.rewards
 
-                if debug and stats:
+                stats.next_frame()
+                frame_count += 1
+
+                # Past 2x the hits pile up into a rattle
+                audible = input_handler.state.speed_level <= SpeedLevel.FAST
+
+                hitter = 0 if result.hit_occurred[0] else 1 if result.hit_occurred[1] else None
+                if hitter is not None:
+                    stats.log_event(f"{'AB'[hitter]} returns  (rally {game.rally_count})")
+                    if game.ball:
+                        stats.log_hit(game.ball.x, game.ball.y, hitter)
+                        if audible:
+                            sounds.hit(game.ball.get_speed() / config.ball_speed)
+
+                if result.point_result:
+                    pr = result.point_result
+                    stats.log_event(f"POINT {'AB'[pr.winner]}  ({pr.reason})")
+                    last_reason = pr.reason
+                    final_rally = game.rally_count
+                    if audible:
+                        sounds.point(pr.reason)
+
+                if debug:
                     stats.add_reward(result.rewards[0], result.rewards[1])
-                    stats.next_frame()
-                    frame_count += 1
 
                     if game.ball and game.ball.is_in != last_is_in:
                         stats.log_event(f"is_in {'ON' if game.ball.is_in else 'OFF'}")
@@ -213,19 +251,27 @@ def run_visual_game(
                         rewards=last_rewards,
                     )
                 else:
-                    renderer.render(game, total_wins=tuple(total_wins))
+                    renderer.render(game, total_wins=tuple(total_wins), stats=stats)
 
             # Tick with dynamic FPS (0 = no limit)
             target_fps = input_handler.state.target_fps
             renderer.tick(target_fps if target_fps > 0 else 0)
+
+        # A stalled point is not a result, so it must not be scored
+        if not game.is_game_over and step_count >= config.max_steps_per_episode:
+            stats.log_event(f"STALLED  no point in {step_count} steps")
+            print(
+                f"Episode {episode_count} stalled after {step_count} steps "
+                f"(rally {game.rally_count}). Neither agent could end the point."
+            )
 
         # Episode end (skip if reset was requested)
         if game.is_game_over:
             winner = game.winner
             total_wins[winner] += 1
 
-            if debug and stats:
-                stats.end_episode(winner)
+            if stats.end_episode(winner, final_rally, last_reason):
+                stats.log_event(f"NEW RECORD  {final_rally} rallies")
 
             # winner_name = "A" if winner == 0 else "B"
 
@@ -262,6 +308,7 @@ def run_visual_game(
     if save_dir:
         _save_agents(agent_a, agent_b, save_dir, episode_count)
 
+    sounds.close()
     renderer.close()
 
 
@@ -298,6 +345,8 @@ def run_headless_training(
     print("=========================\n")
 
     wins = [0, 0]
+    rallies: list = []
+    stalled = 0
 
     # Use tqdm progress bar if available
     episode_range = range(1, num_episodes + 1)
@@ -311,15 +360,21 @@ def run_headless_training(
         agent_a.reset()
         agent_b.reset()
 
-        while not game.is_game_over:
+        steps = 0
+        while not game.is_game_over and steps < config.max_steps_per_episode:
             obs = game.get_observation()
             action_a = agent_a.act(obs)
             action_b = agent_b.act(obs)
             result = game.step(action_a, action_b)
             agent_a.learn(result.rewards[0], game.is_game_over)
             agent_b.learn(result.rewards[1], game.is_game_over)
+            steps += 1
 
-        wins[game.winner] += 1
+        if game.is_game_over:
+            wins[game.winner] += 1
+        else:
+            stalled += 1
+        rallies.append(game.rally_count)
 
         # Update progress bar description with current stats
         if TQDM_AVAILABLE and episode % 10 == 0:
@@ -338,6 +393,13 @@ def run_headless_training(
             _save_agents(agent_a, agent_b, save_dir, episode)
 
     print(f"\nFinal: A={wins[0]} wins, B={wins[1]} wins")
+    if rallies:
+        print(f"Rally: longest {max(rallies)}, average {sum(rallies)/len(rallies):.1f}")
+    if stalled:
+        print(
+            f"Stalled: {stalled}/{num_episodes} episodes hit the "
+            f"{config.max_steps_per_episode}-step budget without a point"
+        )
 
     if save_dir:
         _save_agents(agent_a, agent_b, save_dir, num_episodes)
@@ -351,6 +413,7 @@ def run_benchmark(
     agent_b: Agent,
     train_episodes: int = 300,
     save_dir: Optional[str] = None,
+    mute: bool = False,
 ) -> None:
     """Run benchmark: train headless, then visualize in debug mode.
 
@@ -396,15 +459,18 @@ def run_benchmark(
         agent_b,
         debug=True,
         save_dir=save_dir,
+        mute=mute,
     )
 
 
 def list_agent_types() -> None:
     """Print available agent types."""
     print("\nAvailable agent types:")
-    print("  chase   - Simple ball-chasing AI")
-    print("  smart   - Improved chase with positioning")
-    print("  random  - Random actions (baseline)")
+    print("  chase     - Simple ball-chasing AI")
+    print("  smart     - Improved chase with positioning")
+    print("  baseliner - Defensive baseline play")
+    print("  positional- Position-driven strategy")
+    print("  random    - Random actions (baseline)")
     if NEURAL_AVAILABLE:
         print("  neural      - Learning neural network agent")
         print("  transformer - Advanced Transformer-based agent")
@@ -457,7 +523,7 @@ For more information, see README.md
         default="chase",
         metavar="TYPE",
         help="Agent type for Player A (default: %(default)s)\n"
-        "Built-in types: chase, smart, random, neural, transformer\n"
+        "Built-in types: chase, smart, baseliner, positional, random, neural, transformer\n"
         "Or provide a path to a saved agent directory",
     )
     parser.add_argument(
@@ -466,7 +532,7 @@ For more information, see README.md
         default="chase",
         metavar="TYPE",
         help="Agent type for Player B (default: %(default)s)\n"
-        "Built-in types: chase, smart, random, neural, transformer\n"
+        "Built-in types: chase, smart, baseliner, positional, random, neural, transformer\n"
         "Or provide a path to a saved agent directory",
     )
     parser.add_argument(
@@ -484,6 +550,12 @@ For more information, see README.md
         metavar="FPS",
         help=f"Target frames per second in visual mode (default: {Config().fps})\n"
         "Use 0 for unlimited FPS (max speed)",
+    )
+    parser.add_argument(
+        "--mute",
+        action="store_true",
+        help="Disable sound effects in visual mode\n"
+        "Sound is already silent when no audio device is available",
     )
     parser.add_argument(
         "--debug",
@@ -544,6 +616,7 @@ For more information, see README.md
             agent_b,
             train_episodes=args.episodes,
             save_dir=args.save_dir,
+            mute=args.mute,
         )
     else:
         run_visual_game(
@@ -552,6 +625,7 @@ For more information, see README.md
             agent_b,
             debug=args.debug,
             save_dir=args.save_dir,
+            mute=args.mute,
         )
 
 

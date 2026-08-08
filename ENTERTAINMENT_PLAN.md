@@ -48,6 +48,18 @@ record_replay.py  →  docs/replay.js  →  docs/index.html (canvas再生)
 - ライブ配信 — 録画→再生で足りるうちはサーバーを持たない
 - 操作系 — 観るだけなので再生/一時停止/速度だけ
 
+**対戦カードの指定（追記・実装済み）:** スマホからPythonは動かせないが、GitHubなら動く。
+`.github/workflows/record-replay.yml` を **Actions → Record Replay → Run workflow** から叩けば、
+対戦カードとボール速度を指定して録画→Pages更新まで走る。
+
+エージェント名は選択式ではなく**自由入力**にしてある。新しいAIを書いて `create_agent()` に
+1行足せば、ワークフローを触らずにその名前で指定できる。**推論はPython側にあり続ける**ので、
+高度なAIを載せても仕組みが変わらない。
+
+**ブラウザ移植（案C）を採らなかった理由:** エンジンをJSに移植すれば録画工程は消えるが、
+新しいAIを書くたびにJS版も書く羽目になる。このプロジェクトの目的は
+「AIを自由に実装すること」なので、**推論をPythonに一本化する制約の方が価値が高い。**
+
 **ライブ化するときの道筋:** 送るデータ形式は録画と同じ。
 `main.run_visual_game()` の同期ループを1フレームずつ進む形に切り出して、
 同じ配列を WebSocket に流せば `docs/index.html` はほぼそのまま使える。
@@ -59,7 +71,7 @@ record_replay.py  →  docs/replay.js  →  docs/index.html (canvas再生)
 
 「まず今週末、起動した瞬間に体感が変わる」もの。既存の構造にほぼ乗るだけで済む。
 
-### 1.1 ラリーカウンター & 実況ログ
+### 1.1 ラリーカウンター & 実況ログ ✅ 実装済み
 
 | 項目 | 内容 |
 |------|------|
@@ -72,34 +84,35 @@ record_replay.py  →  docs/replay.js  →  docs/index.html (canvas再生)
 
 **実装手順:**
 
-- [ ] `StatsTracker` にラリー統計を追加
-  - [ ] `longest_rally: int` / `current_rally: int` / `rally_history: List[int]`
-  - [ ] `end_episode()` でラリー長を記録
-- [ ] `main.run_visual_game()` のループで `result.hit_occurred` / `result.point_result` を
+- [x] `StatsTracker` にラリー統計を追加
+  - [x] `longest_rally` / `rally_history` / `average_rally`
+  - [x] `end_episode(winner, rally, reason)` がラリー長を記録し、**記録更新なら True を返す**
+- [x] `main.run_visual_game()` のループで `result.hit_occurred` / `result.point_result` を
       `stats.log_event()` に流す
-  ```python
-  if any(result.hit_occurred):
-      hitter = "A" if result.hit_occurred[0] else "B"
-      stats.log_event(f"{hitter} リターン (ラリー {game.rally_count})")
-  if result.point_result:
-      pr = result.point_result
-      stats.log_event(f"ポイント {'AB'[pr.winner]}! ({pr.reason})")
-  ```
-- [ ] 新規 `CommentaryOverlay` (`Overlay` Protocol 準拠) でコート横に直近8件を表示
-- [ ] **最長ラリー更新時は画面中央にフラッシュ表示** — 「NEW RECORD: 23 RALLIES」
-      これが一番効く。記録更新は無条件で気持ちいい
+- [x] `CommentaryOverlay` でコート左下に直近8件を表示（新しい順にフェード）
+- [x] **最長ラリー更新時にコート上部へフラッシュ表示** — 「NEW RECORD! 12 RALLIES」
+- [x] ヘッドレス学習の最後に最長／平均ラリーを出力
 
-**完了条件:** デバッグ表示なしの通常モードでも、ラリー数と決着理由が読める。
+**完了条件:** ✅ デバッグ表示なしの通常モードでも、ラリー数・最長記録・決着理由が読める。
+
+**設計メモ:**
+
+- フラッシュの寿命は `StatsTracker.record_is_fresh()` が `frame_count` から導出する。
+  レンダラはアニメーション状態を一切持たない（受動のまま）
+- 実況テキストは **ASCII のみ**。`pygame.font.Font(None, ...)` は既定フォントで、
+  日本語グリフを持たないため和文は豆腐になる
+- `DebugRenderer._draw_ui` の重複（基底とほぼ同一の28行）を `_draw_game_over` フックに統合。
+  ついでに実況ログと Obs ミニマップが右上で重なっていた既存の不具合も解消した
 
 ---
 
-### 1.2 打球音とヒットエフェクト
+### 1.2 打球音とヒットエフェクト ✅ 実装済み
 
 | 項目 | 内容 |
 |------|------|
 | 難易度 | ★★☆☆☆ |
 | 効果 | ★★★★☆ (体感が一段変わる) |
-| 関連ファイル | `renderer.py`, 新規 `audio.py` |
+| 関連ファイル | `renderer.py`, `audio.py`, `stats_tracker.py`, `main.py` |
 
 無音のゲームは驚くほどつまらない。逆に **音が付いた瞬間に「試合」になる**。
 音源ファイルを持ちたくないなら、`numpy` で矩形波・ノイズを生成して
@@ -107,18 +120,33 @@ record_replay.py  →  docs/replay.js  →  docs/index.html (canvas再生)
 
 **実装手順:**
 
-- [ ] `audio.py` — 波形生成でSEを合成
-  - [ ] ヒット音 (短いアタック音、打球速度でピッチ変化)
-  - [ ] 壁ヒット音 / ポイント決着音
-  - [ ] `--mute` CLIオプションと、pygame.mixer 初期化失敗時の無音フォールバック
-- [ ] `renderer.py` にヒット時のエフェクト
-  - [ ] 打点に一瞬の白い円 (数フレームで消える)
-  - [ ] ポイント決着時の軽い画面シェイク (描画オフセットを2〜3px揺らすだけ)
-- [ ] ヘッドレスモードでは絶対に鳴らさない・初期化もしない
+- [x] `audio.py` — numpy で波形合成（音源ファイルなし）
+  - [x] ヒット音：ノイズのアタック + 減衰する倍音。打球速度で5段階にピッチ変化
+  - [x] ポイント決着音：**`in` は上昇、`out` は下降**の2音。耳だけで勝ち方が分かる
+  - [x] `--mute` CLIオプション、mixer 初期化失敗時は無音フォールバック
+- [x] `renderer.py` にヒットエフェクト（`HitFlashOverlay`）
+  - [x] 打点から白く弾ける拡大リング。打った側の色に収束しながら消える
+- [x] ヘッドレスモードでは `SoundBank` 自体を生成しない（mixer に触れない）
+- [x] 速度2倍を超えたら消音（4x/MAX では連打してガラガラ鳴るだけになる）
 
-**注意:** `Renderer` は「渡されたものを描くだけ」の受動層(ARCHITECTURE.md)。
-エフェクト状態は `StatsTracker` 側かエフェクト専用の小さな状態オブジェクトに置き、
-描画層に持ち込まないこと。
+**設計メモ:**
+
+- エフェクトの寿命は `StatsTracker.recent_hits()` が `frame_count` から導出する。
+  **Web版リプレイと同じ考え方** — 直近Nフレームを振り返って age を出すだけで、
+  レンダラはアニメーション状態を持たない
+- 音は `pygame.sndarray` で起動時に一度だけ合成。ヒット音は5段階を事前生成して
+  再生時のアロケーションをゼロにしてある
+- numpy / pygame / オーディオデバイスのどれが欠けても `available = False` で
+  静かに無音になる。コンテナや SSH 越しでは普通に起きる
+
+**やらなかったこと — ポイント決着時の画面シェイク:**
+
+ポイントが決まった直後、ゲームループは結果表示のため60フレーム停止する。
+その間 `frame_count` は進まないので、フレーム数から寿命を導出する方式だと
+**シェイクが1秒間ズレたまま固定される**（揺れではなく「ずれた画面」に見える）。
+`frame_count` を描画フレーム基準に変えれば直るが、それは「何フレーム進んだか」という
+意味を壊す。ヒットエフェクトは試合中に何度も出て効果が大きい一方、シェイクは
+1ポイントに1回・しかも画面が止まる瞬間なので、**費用対効果が合わないと判断して落とした。**
 
 ---
 
@@ -284,11 +312,11 @@ README が掲げている問い —— **「ホームポジションに戻る戦
 ```
 0   スマホ観戦 (リプレイ)   ← 済。ここで「状態→canvas描画」の土台ができた
         ↓
-1.1 ラリーカウンター/実況   ← 次はこれ。pygame側にも実況を入れる
+1.1 ラリーカウンター/実況   ← 済。pygame側にも実況と最長ラリー記録が入った
         ↓
-1.2 音とエフェクト          ← 「試合」になる
+1.2 音とエフェクト          ← 済。無音のゲームではなくなった
         ↓
-2.3 ヒートマップ            ← プロジェクトの問いに答える画が出る
+2.3 ヒートマップ            ← 次はこれ。プロジェクトの問いに答える画が出る
         ↓
 1.3 ハイライトリプレイ      ← ここでGIFも撮れてREADMEが強くなる
         ↓
