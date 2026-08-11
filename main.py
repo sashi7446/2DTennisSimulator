@@ -22,6 +22,7 @@ from agents import (
     Agent,
     BaselinerAgent,
     ChaseAgent,
+    InterceptAgent,
     PositionalAgent,
     RandomAgent,
     SmartChaseAgent,
@@ -41,8 +42,7 @@ def create_agent(
     if load_path and os.path.exists(load_path):
         agent = load_agent(load_path)
         agent.set_player_id(player_id)
-        if hasattr(agent, "set_field_dimensions"):
-            agent.set_field_dimensions(config.field_width, config.field_height)
+        _configure_agent(agent, config)
         print(f"Loaded agent from {load_path}: {agent.config.name}")
         return agent
 
@@ -56,6 +56,8 @@ def create_agent(
         agent = BaselinerAgent()
     elif agent_type == "positional":
         agent = PositionalAgent()
+    elif agent_type == "intercept":
+        agent = InterceptAgent()
     elif agent_type == "neural":
         if not NEURAL_AVAILABLE:
             print("Warning: NeuralAgent requires numpy. Falling back to ChaseAgent.")
@@ -76,10 +78,25 @@ def create_agent(
             agent = ChaseAgent()
 
     agent.set_player_id(player_id)
-    if hasattr(agent, "set_field_dimensions"):
-        agent.set_field_dimensions(config.field_width, config.field_height)
+    _configure_agent(agent, config)
 
     return agent
+
+
+def _configure_agent(agent: Agent, config: Config) -> None:
+    """Pass court and movement facts to agents that ask for them.
+
+    Agents must not import Config, so anything that needs real numbers
+    rather than assumed defaults receives them here.
+    """
+    if hasattr(agent, "set_field_dimensions"):
+        agent.set_field_dimensions(config.field_width, config.field_height)
+    if hasattr(agent, "set_physics"):
+        agent.set_physics(
+            config.player_speed,
+            config.reach_distance,
+            (config.area_width, config.area_height, config.area_gap),
+        )
 
 
 def run_visual_game(
@@ -470,6 +487,7 @@ def list_agent_types() -> None:
     print("  smart     - Improved chase with positioning")
     print("  baseliner - Defensive baseline play")
     print("  positional- Position-driven strategy")
+    print("  intercept - Predicts the interception point, recovers to deep centre")
     print("  random    - Random actions (baseline)")
     if NEURAL_AVAILABLE:
         print("  neural      - Learning neural network agent")
@@ -523,7 +541,7 @@ For more information, see README.md
         default="chase",
         metavar="TYPE",
         help="Agent type for Player A (default: %(default)s)\n"
-        "Built-in types: chase, smart, baseliner, positional, random, neural, transformer\n"
+        "Built-in types: chase, smart, baseliner, positional, intercept, random, neural, transformer\n"
         "Or provide a path to a saved agent directory",
     )
     parser.add_argument(
@@ -532,7 +550,7 @@ For more information, see README.md
         default="chase",
         metavar="TYPE",
         help="Agent type for Player B (default: %(default)s)\n"
-        "Built-in types: chase, smart, baseliner, positional, random, neural, transformer\n"
+        "Built-in types: chase, smart, baseliner, positional, intercept, random, neural, transformer\n"
         "Or provide a path to a saved agent directory",
     )
     parser.add_argument(

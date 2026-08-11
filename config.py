@@ -18,6 +18,11 @@ class Config:
     area_gap: int = 250  # Gap between Area A and Area B
 
     # Ball properties
+    # The ball:player speed ratio below is deliberate, not untuned. At 15
+    # against a player speed of 4 a ball cannot be caught by reacting to
+    # where it is, only by moving to where it will be - which is the
+    # behaviour this project exists to watch emerge. Raising player_speed
+    # makes chasing sufficient and deletes the phenomenon.
     ball_speed: float = 15.0
     ball_radius: int = 5
     serve_angle_range: float = 15.0  # ±15 degrees from horizontal

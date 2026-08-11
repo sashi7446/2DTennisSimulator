@@ -3,6 +3,10 @@ name: CI
 on:
   push:
     branches: [main, master]
+    # Nothing under docs/ is covered by pytest or ruff, and recorded
+    # replays land there on every recording.
+    paths-ignore:
+      - "docs/**"
   pull_request:
     branches: [main, master]
 

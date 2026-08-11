@@ -23,15 +23,15 @@ on:
         required: true
         default: "20"
       ball_speed:
-        description: "Ball speed (blank = config default 15.0). Lower means longer rallies"
+        description: "Ball speed. Blank keeps the tuned 15.0; lower lengthens rallies"
         required: false
-        default: "8"
+        default: ""
       player_speed:
-        description: "Player speed (blank = config default 4.0)"
+        description: "Player speed. Blank keeps the tuned 4.0 - raising it makes anticipation pointless"
         required: false
-        default: "8"
+        default: ""
       reach:
-        description: "Player reach distance (blank = config default 30.0)"
+        description: "Player reach distance. Blank keeps the tuned 30.0"
         required: false
         default: ""
 
@@ -84,15 +84,15 @@ jobs:
           AGENT_B: ${{ inputs.agent_b }}
         run: |
           set -euo pipefail
-          if git diff --quiet docs/replay.js; then
+          if git diff --quiet docs/replay.js docs/index.html; then
             echo "Replay is identical to the published one - nothing to do."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/replay.js
-          # [skip ci] keeps this from triggering the test workflow
-          git commit -m "Record $AGENT_A vs $AGENT_B [skip ci]"
+          # index.html carries the cache-busting version of replay.js
+          git add docs/replay.js docs/index.html
+          git commit -m "Record $AGENT_A vs $AGENT_B"
           git push
 
       - name: Summary

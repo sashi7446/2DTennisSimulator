@@ -40,9 +40,10 @@ python main.py --mode list
 | タイプ | 説明 |
 |--------|------|
 | `chase` | ボールを追いかけるシンプルなAI（デフォルト） |
-| `smart` | 位置取りを考慮した改良版チェイスAI |
+| `smart` | チェイスに10フレーム先の外挿を足しただけ。前後の戦略はない |
 | `baseliner` | 守備的にベースライン付近で拾い続けるAI |
 | `positional` | 位置取り優先のAI |
+| `intercept` | 到達可能な迎撃点へ先回りし、空いたら後方センターへ戻る |
 | `random` | ランダム行動（ベースライン比較用） |
 | `neural` | Policy Gradientで学習するニューラルネットワークAI |
 | `transformer` | Attention機構を用いた高度なモデル（Transformer） |
@@ -160,7 +161,7 @@ iPhone なら Safari の共有 →「ホーム画面に追加」でアプリの�
 | 暗い黄色のボール | まだインエリアを通過していない。壁に当たれば打った側の**失点**（アウト） |
 | ボールの尾 | 直近の軌跡 |
 | 打点から広がる白いリング | そのフレームで打ち返した |
-| ヘッダの `ball 8 · player 8 · reach 30` | その試合を録った設定 |
+| ヘッダの `ball 15 · player 4 · reach 30` | その試合を録った設定 |
 | `Point 3/20  Rally 12` | ポイント番号と、現時点までの往復数 |
 | 🔥 LONGEST RALLY | そのポイントが録画中の最長ラリー |
 | `SmartChaseBot WINS (IN)` | 決着。`IN` は決めて得点、`OUT` はミスで失点 |
@@ -180,7 +181,7 @@ GitHubアプリまたはブラウザで **Actions → Record Replay → Run work
 | `agent_a` / `agent_b` | 対戦させるAIの名前、または保存済みエージェントのパス |
 | `points` | 録画するポイント数 |
 | `ball_speed` | ボール速度（空欄でデフォルト15.0）。**小さいほどラリーが続く** |
-| `player_speed` | プレイヤー速度（空欄でデフォルト4.0） |
+| `player_speed` | プレイヤー速度（空欄でデフォルト4.0）。**上げると予測が無意味になります** |
 | `reach` | リーチ距離（空欄でデフォルト30.0） |
 
 **エージェント名は選択式ではなく自由入力です。** 新しいAIを書いて `create_agent()` に
@@ -192,25 +193,40 @@ GitHubアプリまたはブラウザで **Actions → Record Replay → Run work
 # 録画すると docs/replay.js が生成される
 python record_replay.py --agent-a smart --agent-b baseliner --points 20
 
-# ラリーが続く設定で録る
-python record_replay.py --agent-a smart --agent-b smart --speed 8 --player-speed 8
+# ラリーを長くする（プレイヤー速度は変えない。下の注意を参照）
+python record_replay.py --agent-a smart --agent-b smart --speed 8
 
 # 学習済みエージェントの世代対決
 python record_replay.py --agent-a saved/gen_050 --agent-b saved/gen_001 --points 30
 ```
 
 `docs/index.html` をブラウザで開けばそのまま再生できます（`file://` でも動作）。
-公開するには `docs/replay.js` をコミットして push してください。
+公開するには `docs/replay.js` と `docs/index.html` をコミットして push してください
+（録画時に `index.html` の読み込みURLへ内容ハッシュが付与されるため、両方必要です）。
 
 > GitHub Pages の設定は **Settings → Pages → Source: main / docs**。
 
-### 組み合わせによる試合の質
+### 設定を変えるときの注意
 
-デフォルト設定はボールが速すぎてプレイヤーが追いつけず、ラリーが2往復ほどで終わります。
-`--speed 8 --player-speed 8` を付けると平均20往復以上まで伸びます。
+**`player_speed` を上げてはいけません。** ボール速度15に対してプレイヤー速度4という比は、
+「反応では間に合わないので予測して先に動くしかない」状況を作っています。
+このプロジェクトが観察したい**位置取りや予測が生まれる余地はここから来ています。**
 
-なお `baseliner` 同士は守備的すぎてポイントが決まらず、
-`Config.max_steps_per_episode`（5000ステップ）で打ち切られます。
+プレイヤー速度を8にすると、ボールを見てから追いかければ間に合うようになり、
+予測の価値が消えます（`chase` の `smart` に対する勝率が 3% → 18% に上がります）。
+ボール速度8とプレイヤー速度8を同時に指定すると**ポイントが永久に決まりません。**
+
+ラリーを長くしたいなら、**プレイヤー速度は 4.0 のまま、ボール速度だけ下げてください。**
+
+| 設定 | smart vs smart の平均ラリー |
+|------|------------------------------|
+| ball 15.0（デフォルト） | 3.1 |
+| ball 12.0 | 5.0 |
+| ball 8.0 | 7.5 |
+| ball 8.0 + **player 8.0** | 決着せず（打ち切り） |
+
+`baseliner` 同士はデフォルト設定でもポイントが決まりません。
+録画は1ポイント1800フレームで打ち切り、その旨を警告します。
 
 記録されるのはボール・プレイヤーの座標と打球イベントのみ。
 サイズはラリーの長さ次第で、1ポイントあたり数KB（短い決着）〜20KB程度（長いラリー）です。
@@ -268,16 +284,16 @@ Config(
     field_height=400,
 
     # インエリア
-    area_width=150,
-    area_height=100,
-    area_gap=100,
+    area_width=200,
+    area_height=300,
+    area_gap=250,
 
     # ボール
-    ball_speed=5.0,
+    ball_speed=15.0,
     serve_angle_range=15.0,
 
     # プレイヤー
-    player_speed=3.0,
+    player_speed=4.0,
     reach_distance=30.0,
 
     # 報酬（詳細は下記参照）
