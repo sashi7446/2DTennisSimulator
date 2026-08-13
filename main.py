@@ -349,8 +349,13 @@ def run_headless_training(
     num_episodes: int = 100,
     save_dir: Optional[str] = None,
     save_interval: int = 10,
+    heatmap_out: Optional[str] = None,
 ) -> tuple:
     """Run training without visualization.
+
+    Args:
+        heatmap_out: If given, record player positions and write the grid
+            to this .npz path. Rendering happens later, in heatmap.py.
 
     Returns:
         Tuple of (wins, agent_a, agent_b) for use in benchmark mode.
@@ -364,6 +369,12 @@ def run_headless_training(
     wins = [0, 0]
     rallies: list = []
     stalled = 0
+
+    heatmap = None
+    if heatmap_out:
+        from heatmap import PositionHeatmap
+
+        heatmap = PositionHeatmap(config)
 
     # Use tqdm progress bar if available
     episode_range = range(1, num_episodes + 1)
@@ -385,6 +396,12 @@ def run_headless_training(
             result = game.step(action_a, action_b)
             agent_a.learn(result.rewards[0], game.is_game_over)
             agent_b.learn(result.rewards[1], game.is_game_over)
+            if heatmap is not None:
+                heatmap.record_frame(
+                    (game.player_a.x, game.player_a.y),
+                    (game.player_b.x, game.player_b.y),
+                    result.hit_occurred,
+                )
             steps += 1
 
         if game.is_game_over:
@@ -417,6 +434,11 @@ def run_headless_training(
             f"Stalled: {stalled}/{num_episodes} episodes hit the "
             f"{config.max_steps_per_episode}-step budget without a point"
         )
+
+    if heatmap is not None and heatmap_out:
+        heatmap.save(heatmap_out)
+        print(f"Heatmap: {heatmap.frames_recorded} frames -> {heatmap_out}")
+        print(f"  Render with: python heatmap.py {heatmap_out} --out heatmap.png")
 
     if save_dir:
         _save_agents(agent_a, agent_b, save_dir, num_episodes)
@@ -602,6 +624,16 @@ For more information, see README.md
         "Each episode is one complete point (serve until wall hit)",
     )
 
+    parser.add_argument(
+        "--heatmap-out",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Record player positions during headless training and write\n"
+        "the grid to this .npz file\n"
+        "Render it afterwards: python heatmap.py PATH --out heatmap.png",
+    )
+
     args = parser.parse_args()
 
     if args.mode == "list":
@@ -626,6 +658,7 @@ For more information, see README.md
             agent_b,
             num_episodes=args.episodes,
             save_dir=args.save_dir,
+            heatmap_out=args.heatmap_out,
         )
     elif args.mode == "benchmark":
         run_benchmark(
