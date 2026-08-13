@@ -168,8 +168,8 @@ class GameRenderer:
             self.screen, stats.heatmap, input_state.heatmap_player, self.field_to_screen
         )
 
-        # Say whose frames are on screen - three of the four H states look
-        # similar enough that an unlabelled tint invites a wrong reading
+        # Both-players and single-player tints look alike; unlabelled, the
+        # wrong one gets read as the right one
         who = {0: "PLAYER A", 1: "PLAYER B"}.get(input_state.heatmap_player, "BOTH")
         label = self.debug_font.render(
             f"HEATMAP: {who}  ({stats.heatmap.frames_recorded} frames)", True, WHITE
@@ -314,13 +314,13 @@ class HitFlashOverlay:
 class HeatmapOverlay:
     """Tints the court by how long a player has stood in each cell.
 
-    The counts live in StatsTracker's grid, not here - this only colours
-    what it is handed. The one piece of state it keeps is a cached
-    surface, rebuilt when the grid has moved on enough to look different;
-    recolouring 800 cells every frame would cost more than it shows.
+    The counts live in StatsTracker's grid, not here. The cached surface
+    is the one piece of state this keeps: a tint built from thousands of
+    accumulated frames cannot visibly change between two of them, so
+    rebuilding every frame would buy nothing.
     """
 
-    REBUILD_INTERVAL = 20  # frames of new data before the tint is redrawn
+    REBUILD_INTERVAL = 20
 
     def __init__(self) -> None:
         self._surface: Optional[Surface] = None
@@ -369,9 +369,8 @@ class HeatmapOverlay:
                 if weight <= 0.0:
                     continue
                 red, green, blue = (int(c) for c in colors[row][col])
-                # Square root, not linear: one hot cell would otherwise make
-                # every merely-common cell invisible. Rare cells still stay
-                # faint, so the court reads through where nobody went.
+                # Square root, not linear: normalising against a single hot
+                # cell would leave every merely-common cell invisible
                 opacity = int(alpha * min(1.0, math.sqrt(weight) * 1.2))
                 cells.set_at((col, row), (red, green, blue, opacity))
 

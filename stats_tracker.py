@@ -35,8 +35,8 @@ class StatsTracker:
         self.moving_avg_window = moving_avg_window
         self.max_history = max_history
 
-        # Position heatmap. Off unless a grid is handed in, so headless
-        # training pays nothing for a feature it was not asked for.
+        # None unless a grid is handed in: headless training must not pay
+        # for a feature it did not ask for
         self.heatmap = heatmap
 
         # Per-episode totals

@@ -43,7 +43,6 @@ class TestPositionHeatmap(unittest.TestCase):
             PositionHeatmap(self.config, grid_width=0, grid_height=4)
 
     def test_record_lands_in_expected_cell(self):
-        # Top-left corner of the field
         self.heatmap.record(0, 1.0, 1.0)
         self.assertEqual(self.heatmap.grid[0][PHASE_IDLE][0][0], 1)
 
@@ -179,7 +178,6 @@ class TestPngWriter(unittest.TestCase):
         self.assertEqual((width, height, depth, color_type), (5, 3, 8, 2))
         self.assertIn(b"IEND", data[-8:])
 
-        # Rebuild the pixels from the IDAT stream and compare
         start = data.index(b"IDAT") + 4
         end = data.index(b"IEND") - 8
         raw = zlib.decompress(data[start:end])

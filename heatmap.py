@@ -1,20 +1,14 @@
 """Position heatmaps for 2D Tennis Simulator.
 
 Answers the question the README opens with: does "return to the home
-position" emerge on its own? A heatmap of where each player spends its
-frames turns that question into a picture.
+position" emerge on its own?
 
-The aggregator is a plain 2D histogram, so it runs in headless training
-without pulling in pygame. Rendering writes a PNG with nothing but the
-standard library and numpy - no matplotlib, in keeping with the way
-audio.py synthesises its sounds instead of shipping assets.
+PNGs are written with zlib rather than matplotlib on purpose - the same
+call as audio.py synthesising sound instead of shipping audio files.
+Reach for a plotting library here and the project gains a heavyweight
+dependency for one picture.
 
-Usage:
-    python main.py --mode headless --agent-a chase --episodes 500 \\
-        --heatmap-out heatmaps/chase.npz
-    python heatmap.py heatmaps/chase.npz --out docs/heatmap.png
-    python heatmap.py --compare heatmaps/gen_001.npz heatmaps/gen_050.npz \\
-        --out docs/growth.png
+Usage examples: python heatmap.py --help
 """
 
 from __future__ import annotations
@@ -29,7 +23,6 @@ import numpy as np
 
 from config import Config
 
-# Phase indices into the grid's second axis
 PHASE_IDLE = 0
 PHASE_HIT = 1
 NUM_PHASES = 2
@@ -41,10 +34,10 @@ DEFAULT_GRID_HEIGHT = 20
 class PositionHeatmap:
     """Counts how many frames each player spent in each cell of the court.
 
-    The grid is indexed ``[player][phase][row][column]``. Splitting "the
-    frame a shot was struck" from "every other frame" separates where an
-    agent hits from where it waits, which is the interesting half of the
-    question: waiting positions are chosen, contact positions are forced.
+    The grid is indexed ``[player][phase][row][column]``. Hit frames are
+    kept apart from waiting frames because only the waiting positions are
+    chosen by the agent - contact positions are forced by the ball, so
+    merging them would blur the behaviour being looked for.
     """
 
     def __init__(
@@ -127,7 +120,6 @@ class PositionHeatmap:
 
 # --- Rendering ------------------------------------------------------------
 
-# Dark court to hot spot. Ordered stops, interpolated linearly.
 _COLOR_STOPS: Sequence[Tuple[float, Tuple[int, int, int]]] = (
     (0.00, (12, 28, 16)),
     (0.20, (18, 66, 74)),
@@ -138,9 +130,8 @@ _COLOR_STOPS: Sequence[Tuple[float, Tuple[int, int, int]]] = (
 )
 
 
-# Palette for the live overlay, which sits on the green court rather than
-# on a dark PNG background. It skips the dark end entirely - anything that
-# reads as "shadow" disappears into the grass.
+# Skips the dark end: this palette is blitted onto the green court, where
+# anything reading as shadow disappears into the grass.
 LIVE_COLOR_STOPS: Sequence[Tuple[float, Tuple[int, int, int]]] = (
     (0.00, (60, 110, 255)),
     (0.35, (0, 225, 205)),

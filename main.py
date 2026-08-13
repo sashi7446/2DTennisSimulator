@@ -132,8 +132,8 @@ def run_visual_game(
     # Stats feed the normal-mode display too, so this is not debug-only
     input_handler = InputHandler(debug_mode=debug)
 
-    # Always collected: two integer increments per frame, and the H key is
-    # useless without a grid behind it
+    # Unconditional: two counter increments per frame, and the H key has
+    # nothing to show unless the grid was being filled all along
     from heatmap import PositionHeatmap
 
     stats = StatsTracker(heatmap=PositionHeatmap(config))

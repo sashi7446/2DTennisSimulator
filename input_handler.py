@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Tuple
 
 try:
     import pygame
@@ -30,6 +30,15 @@ SPEED_SETTINGS = {
 }
 
 
+# Order the H key steps through: (visible, player or None for both)
+HEATMAP_MODES: Tuple[Tuple[bool, Optional[int]], ...] = (
+    (False, None),
+    (True, None),
+    (True, 0),
+    (True, 1),
+)
+
+
 @dataclass
 class InputState:
     """Current state of input/UI controls."""
@@ -47,21 +56,21 @@ class InputState:
     show_state_panel: bool = True
     show_graphs: bool = True
     show_fps: bool = False
-    # Heatmap cycle: 0 off, 1 both players, 2 player A, 3 player B.
-    # Not a debug toggle - the heatmap is part of watching a match.
+    # Bound outside debug mode too: where a player stands is part of
+    # watching a match, not a debugging aid
     heatmap_mode: int = 0
 
     @property
     def show_heatmap(self) -> bool:
-        return self.heatmap_mode != 0
+        return HEATMAP_MODES[self.heatmap_mode][0]
 
     @property
     def heatmap_player(self) -> Optional[int]:
         """Player to display, or None for both combined."""
-        return {2: 0, 3: 1}.get(self.heatmap_mode)
+        return HEATMAP_MODES[self.heatmap_mode][1]
 
     def cycle_heatmap(self) -> None:
-        self.heatmap_mode = (self.heatmap_mode + 1) % 4
+        self.heatmap_mode = (self.heatmap_mode + 1) % len(HEATMAP_MODES)
 
     @property
     def target_fps(self) -> int:
