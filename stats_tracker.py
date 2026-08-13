@@ -2,7 +2,10 @@
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, List, Optional, Tuple
+from typing import TYPE_CHECKING, Deque, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from heatmap import PositionHeatmap
 
 
 @dataclass
@@ -23,9 +26,18 @@ class StatsTracker:
     with the same statistics collection.
     """
 
-    def __init__(self, moving_avg_window: int = 20, max_history: int = 200):
+    def __init__(
+        self,
+        moving_avg_window: int = 20,
+        max_history: int = 200,
+        heatmap: Optional["PositionHeatmap"] = None,
+    ):
         self.moving_avg_window = moving_avg_window
         self.max_history = max_history
+
+        # None unless a grid is handed in: headless training must not pay
+        # for a feature it did not ask for
+        self.heatmap = heatmap
 
         # Per-episode totals
         self.total_wins = [0, 0]
@@ -70,6 +82,16 @@ class StatsTracker:
     def next_frame(self) -> None:
         """Advance frame counter."""
         self.frame_count += 1
+
+    def record_positions(
+        self,
+        a_pos: Tuple[float, float],
+        b_pos: Tuple[float, float],
+        hits: Tuple[bool, bool] = (False, False),
+    ) -> None:
+        """Feed one frame of player positions to the heatmap, if enabled."""
+        if self.heatmap is not None:
+            self.heatmap.record_frame(a_pos, b_pos, hits)
 
     def log_hit(self, x: float, y: float, player_id: int) -> None:
         """Record where a hit landed so the renderer can flash it."""

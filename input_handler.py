@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional, Tuple
 
 try:
     import pygame
@@ -30,6 +30,15 @@ SPEED_SETTINGS = {
 }
 
 
+# Order the H key steps through: (visible, player or None for both)
+HEATMAP_MODES: Tuple[Tuple[bool, Optional[int]], ...] = (
+    (False, None),
+    (True, None),
+    (True, 0),
+    (True, 1),
+)
+
+
 @dataclass
 class InputState:
     """Current state of input/UI controls."""
@@ -47,6 +56,21 @@ class InputState:
     show_state_panel: bool = True
     show_graphs: bool = True
     show_fps: bool = False
+    # Bound outside debug mode too: where a player stands is part of
+    # watching a match, not a debugging aid
+    heatmap_mode: int = 0
+
+    @property
+    def show_heatmap(self) -> bool:
+        return HEATMAP_MODES[self.heatmap_mode][0]
+
+    @property
+    def heatmap_player(self) -> Optional[int]:
+        """Player to display, or None for both combined."""
+        return HEATMAP_MODES[self.heatmap_mode][1]
+
+    def cycle_heatmap(self) -> None:
+        self.heatmap_mode = (self.heatmap_mode + 1) % len(HEATMAP_MODES)
 
     @property
     def target_fps(self) -> int:
@@ -78,6 +102,7 @@ class InputHandler:
         bindings = {
             pygame.K_ESCAPE: lambda: setattr(self.state, "quit_requested", True),
             pygame.K_s: lambda: setattr(self.state, "save_requested", True),
+            pygame.K_h: self.state.cycle_heatmap,
         }
         if self.debug_mode:
             bindings.update(

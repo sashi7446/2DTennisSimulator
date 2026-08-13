@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `DebugRenderer` never built its `HitFlashOverlay`, so debug mode crashed
+  on the first hit it tried to draw
+
 ### Added
+- `heatmap.py`: position heatmaps answering whether a home position emerges
+- `--heatmap-out` records where players stood, in visual and headless mode
+- Heatmap PNG rendering with zlib and numpy only, no matplotlib
+- `H` cycles a live heatmap tint on the court: both players, A, B, off
+- Heatmap tests (`tests/test_heatmap.py`, `tests/test_heatmap_overlay.py`), 43 tests
+- README section comparing chase and intercept heatmaps
 - ENTERTAINMENT_PLAN.md: phased plan for making the simulator fun to watch
 - Static replay viewer (`docs/index.html`) playable on a phone via GitHub Pages
 - `record_replay.py` to record matches into `docs/replay.js`

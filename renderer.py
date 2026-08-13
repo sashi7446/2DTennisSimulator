@@ -61,6 +61,7 @@ class GameRenderer:
         self.commentary = CommentaryOverlay()
         self.record_flash = RecordFlashOverlay()
         self.hit_flash = HitFlashOverlay()
+        self.heatmap_overlay = HeatmapOverlay()
 
     def field_to_screen(self, x: float, y: float) -> Tuple[int, int]:
         """Convert field coordinates to screen coordinates."""
@@ -157,6 +158,24 @@ class GameRenderer:
         pygame.draw.rect(self.screen, BLACK, rect.inflate(20, 10))
         self.screen.blit(text, rect)
 
+    def _draw_heatmap(self, stats: Any, input_state: Any = None) -> None:
+        """Tint the court with the live position grid, when toggled on."""
+        if not stats or getattr(stats, "heatmap", None) is None:
+            return
+        if input_state is None or not input_state.show_heatmap:
+            return
+        self.heatmap_overlay.draw(
+            self.screen, stats.heatmap, input_state.heatmap_player, self.field_to_screen
+        )
+
+        # Both-players and single-player tints look alike; unlabelled, the
+        # wrong one gets read as the right one
+        who = {0: "PLAYER A", 1: "PLAYER B"}.get(input_state.heatmap_player, "BOTH")
+        label = self.debug_font.render(
+            f"HEATMAP: {who}  ({stats.heatmap.frames_recorded} frames)", True, WHITE
+        )
+        self.screen.blit(label, (self.padding + 6, self.padding + self.ui_height + 6))
+
     def _draw_hit_flash(self, stats: Any) -> None:
         """Draw impact rings for hits from the last few frames."""
         if stats:
@@ -188,7 +207,11 @@ class GameRenderer:
             )
 
     def render(
-        self, game: Game, total_wins: Optional[Tuple[int, int]] = None, stats: Any = None
+        self,
+        game: Game,
+        total_wins: Optional[Tuple[int, int]] = None,
+        stats: Any = None,
+        input_state: Any = None,
     ) -> None:
         """Render game state to screen.
 
@@ -196,8 +219,10 @@ class GameRenderer:
             game: Current game state
             total_wins: (wins_a, wins_b) tuple
             stats: StatsTracker for the play-by-play feed and rally records
+            input_state: InputState, for the heatmap toggle
         """
         self._draw_field(game)
+        self._draw_heatmap(stats, input_state)
         self._draw_players(game)
         self._draw_hit_flash(stats)
         self._draw_ball(game)
@@ -272,8 +297,9 @@ class DistanceOverlay:
 class HitFlashOverlay:
     """Expanding ring at each recent point of contact."""
 
-    def draw(self, screen: Surface, hits: Sequence[Tuple[float, float, float, int]],
-             field_to_screen) -> None:
+    def draw(
+        self, screen: Surface, hits: Sequence[Tuple[float, float, float, int]], field_to_screen
+    ) -> None:
         for age, x, y, player_id in hits:
             # Expands well past the reach circle, so the burst never reads
             # as just another ring around the player
@@ -283,6 +309,74 @@ class HitFlashOverlay:
             color = tuple(int(c + (255 - c) * fade) for c in base)
             width = 3 if fade > 0.4 else 2
             pygame.draw.circle(screen, color, field_to_screen(x, y), radius, width)
+
+
+class HeatmapOverlay:
+    """Tints the court by how long a player has stood in each cell.
+
+    The counts live in StatsTracker's grid, not here. The cached surface
+    is the one piece of state this keeps: a tint built from thousands of
+    accumulated frames cannot visibly change between two of them, so
+    rebuilding every frame would buy nothing.
+    """
+
+    REBUILD_INTERVAL = 20
+
+    def __init__(self) -> None:
+        self._surface: Optional[Surface] = None
+        self._key: Optional[Tuple[Any, ...]] = None
+
+    def draw(
+        self,
+        screen: Surface,
+        heatmap: Any,
+        player_id: Optional[int],
+        field_to_screen,
+        alpha: int = 150,
+    ) -> None:
+        if heatmap is None or heatmap.frames_recorded == 0:
+            return
+
+        surface = self._get_surface(heatmap, player_id, alpha)
+        if surface is None:
+            return
+        screen.blit(surface, field_to_screen(0, 0))
+
+    def _get_surface(self, heatmap: Any, player_id: Optional[int], alpha: int) -> Optional[Surface]:
+        key = (
+            player_id,
+            alpha,
+            heatmap.frames_recorded // self.REBUILD_INTERVAL,
+            id(heatmap),
+        )
+        if key != self._key:
+            self._surface = self._build_surface(heatmap, player_id, alpha)
+            self._key = key
+        return self._surface
+
+    def _build_surface(self, heatmap: Any, player_id: Optional[int], alpha: int) -> Surface:
+        from heatmap import LIVE_COLOR_STOPS, colorize
+
+        counts = heatmap.layer(player_id)
+        peak = counts.max()
+        normalized = counts / peak if peak > 0 else counts
+        colors = colorize(normalized, LIVE_COLOR_STOPS)
+
+        cells = pygame.Surface((heatmap.grid_width, heatmap.grid_height), pygame.SRCALPHA)
+        for row in range(heatmap.grid_height):
+            for col in range(heatmap.grid_width):
+                weight = float(normalized[row][col])
+                if weight <= 0.0:
+                    continue
+                red, green, blue = (int(c) for c in colors[row][col])
+                # Square root, not linear: normalising against a single hot
+                # cell would leave every merely-common cell invisible
+                opacity = int(alpha * min(1.0, math.sqrt(weight) * 1.2))
+                cells.set_at((col, row), (red, green, blue, opacity))
+
+        return pygame.transform.smoothscale(
+            cells, (heatmap.config.field_width, heatmap.config.field_height)
+        )
 
 
 class CommentaryOverlay:
@@ -731,6 +825,8 @@ class DebugRenderer(GameRenderer):
         self.reward_overlay = RewardOverlay()
         self.commentary = CommentaryOverlay()
         self.record_flash = RecordFlashOverlay()
+        self.hit_flash = HitFlashOverlay()
+        self.heatmap_overlay = HeatmapOverlay()
 
     def render(
         self,
@@ -759,6 +855,7 @@ class DebugRenderer(GameRenderer):
         """
         # Base rendering
         self._draw_field(game)
+        self._draw_heatmap(stats, input_state)
 
         # Trajectory (before ball so trail is behind)
         if input_state and input_state.show_trajectory:
