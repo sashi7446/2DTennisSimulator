@@ -106,6 +106,7 @@ def run_visual_game(
     debug: bool = False,
     save_dir: Optional[str] = None,
     mute: bool = False,
+    heatmap_out: Optional[str] = None,
 ) -> None:
     """Run a game with pygame visualization and agent control.
 
@@ -130,7 +131,12 @@ def run_visual_game(
 
     # Stats feed the normal-mode display too, so this is not debug-only
     input_handler = InputHandler(debug_mode=debug)
-    stats = StatsTracker()
+
+    # Always collected: two integer increments per frame, and the H key is
+    # useless without a grid behind it
+    from heatmap import PositionHeatmap
+
+    stats = StatsTracker(heatmap=PositionHeatmap(config))
 
     # Built before the renderer so the mixer gets its buffer settings first
     sounds = SoundBank(enabled=not mute)
@@ -141,6 +147,7 @@ def run_visual_game(
         print("1-4  - Speed (1x/2x/4x/Max)")
         print("T/D/P/G - Toggle overlays")
         print("F    - Toggle FPS display")
+        print("H    - Heatmap (both / A / B / off)")
         print("SPACE - Pause, N - Step")
         print("R    - Reset episode")
         print("S    - Save agents")
@@ -211,6 +218,11 @@ def run_visual_game(
                 last_rewards = result.rewards
 
                 stats.next_frame()
+                stats.record_positions(
+                    (game.player_a.x, game.player_a.y),
+                    (game.player_b.x, game.player_b.y),
+                    result.hit_occurred,
+                )
                 frame_count += 1
 
                 # Past 2x the hits pile up into a rattle
@@ -268,7 +280,12 @@ def run_visual_game(
                         rewards=last_rewards,
                     )
                 else:
-                    renderer.render(game, total_wins=tuple(total_wins), stats=stats)
+                    renderer.render(
+                        game,
+                        total_wins=tuple(total_wins),
+                        stats=stats,
+                        input_state=input_handler.state,
+                    )
 
             # Tick with dynamic FPS (0 = no limit)
             target_fps = input_handler.state.target_fps
@@ -319,8 +336,17 @@ def run_visual_game(
                             rewards=last_rewards,
                         )
                     else:
-                        renderer.render(game, total_wins=tuple(total_wins))
+                        renderer.render(
+                            game,
+                            total_wins=tuple(total_wins),
+                            stats=stats,
+                            input_state=input_handler.state,
+                        )
                     renderer.tick(60)
+
+    if heatmap_out and stats.heatmap is not None:
+        stats.heatmap.save(heatmap_out)
+        print(f"Heatmap: {stats.heatmap.frames_recorded} frames -> {heatmap_out}")
 
     if save_dir:
         _save_agents(agent_a, agent_b, save_dir, episode_count)
@@ -603,6 +629,7 @@ For more information, see README.md
         help="Enable debug mode in visual mode\n"
         "Shows: state overlay, reward graphs, trajectory prediction\n"
         "Keyboard: D (debug), T (trajectory), P (graphs), G (grid)\n"
+        "          H (position heatmap, also works without --debug)\n"
         "          1-4 (speed), SPACE (pause), R (reset), S (save)",
     )
     parser.add_argument(
@@ -629,8 +656,8 @@ For more information, see README.md
         type=str,
         default=None,
         metavar="PATH",
-        help="Record player positions during headless training and write\n"
-        "the grid to this .npz file\n"
+        help="Record player positions and write the grid to this .npz file\n"
+        "Works in visual and headless mode\n"
         "Render it afterwards: python heatmap.py PATH --out heatmap.png",
     )
 
@@ -677,6 +704,7 @@ For more information, see README.md
             debug=args.debug,
             save_dir=args.save_dir,
             mute=args.mute,
+            heatmap_out=args.heatmap_out,
         )
 
 

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional
 
 try:
     import pygame
@@ -47,6 +47,21 @@ class InputState:
     show_state_panel: bool = True
     show_graphs: bool = True
     show_fps: bool = False
+    # Heatmap cycle: 0 off, 1 both players, 2 player A, 3 player B.
+    # Not a debug toggle - the heatmap is part of watching a match.
+    heatmap_mode: int = 0
+
+    @property
+    def show_heatmap(self) -> bool:
+        return self.heatmap_mode != 0
+
+    @property
+    def heatmap_player(self) -> Optional[int]:
+        """Player to display, or None for both combined."""
+        return {2: 0, 3: 1}.get(self.heatmap_mode)
+
+    def cycle_heatmap(self) -> None:
+        self.heatmap_mode = (self.heatmap_mode + 1) % 4
 
     @property
     def target_fps(self) -> int:
@@ -78,6 +93,7 @@ class InputHandler:
         bindings = {
             pygame.K_ESCAPE: lambda: setattr(self.state, "quit_requested", True),
             pygame.K_s: lambda: setattr(self.state, "save_requested", True),
+            pygame.K_h: self.state.cycle_heatmap,
         }
         if self.debug_mode:
             bindings.update(

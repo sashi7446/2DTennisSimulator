@@ -13,6 +13,7 @@ AIエージェント同士が対戦しながら学習していく過程を観察
 - スマホで観れるリプレイビューア（GitHub Pages / サーバー不要）
 - Policy Gradient（REINFORCE）による学習エージェント
 - 学習過程をグラフで可視化（デバッグモード）
+- 滞在位置ヒートマップ（観戦中に `H`、または PNG 書き出し）
 - エージェントの保存・読み込み機能
 - 複数のエージェントタイプ（ルールベース/学習型）
 
@@ -91,6 +92,7 @@ python main.py --mute
 | キー | 動作 |
 |------|------|
 | `D` | デバッグ表示の切り替え |
+| `H` | ヒートマップ切り替え（両者 → A → B → オフ） |
 | `S` | エージェントを保存（--save-dir指定時） |
 | `R` | ゲームリセット |
 | `ESC` | 終了 |
@@ -119,6 +121,54 @@ python main.py --agent-a my_agents/agent_a_neural --agent-b chase
 # 保存済みエージェント同士の対戦
 python main.py --agent-a saved/champion_v1 --agent-b saved/champion_v2
 ```
+
+## ヒートマップ（どこに居たか）
+
+このプロジェクトの問い —— **「ホームポジションに戻る戦術は自然発生するか」** ——
+に答えるための画。各プレイヤーが**どのマスに何フレーム居たか**を 40×20 で数え、
+色にして出す。打った瞬間のフレームと待機中のフレームは分けて集計している
+（**待機位置はAIが選んだ結果**だが、打点はボールに強制されるため）。
+
+### 観戦中に重ねる
+
+`H` を押すたびに 両者 → A のみ → B のみ → オフ と切り替わる。
+デバッグモード専用ではないので、通常の観戦中でも使える。
+試合を眺めているうちに、そのAIの「居場所」が滲み出てくる。
+
+### 記録して画像に出す
+
+```bash
+# 学習・対戦しながら位置を記録（可視モードでも同じフラグが使える）
+python main.py --mode headless --agent-a chase --agent-b chase \
+    --episodes 300 --heatmap-out heatmaps/chase.npz
+
+# PNG に描き出す
+python heatmap.py heatmaps/chase.npz --out heatmap.png
+
+# 2つを並べて比較（同じ色スケールで揃えるなら --shared-scale）
+python heatmap.py --compare heatmaps/gen_001.npz heatmaps/gen_050.npz \
+    --out growth.png --shared-scale
+
+# プレイヤー・フェーズを絞る
+python heatmap.py heatmaps/chase.npz --player a --phase idle --out a_idle.png
+```
+
+`--phase` は `all` / `idle`（待機中）/ `hit`（打った瞬間）。
+描画は zlib と numpy だけで PNG を書く。matplotlib は要らない。
+
+### 読める例
+
+![chase vs intercept のヒートマップ](docs/heatmap_chase_vs_intercept.png)
+
+左が `chase` 同士、右が `intercept` 同士（各300エピソード）。
+
+- **chase**: コート中央の横一線に伸びている。ボールを追って左右に往復し続けるだけで、
+  戻る場所を持っていない
+- **intercept**: 自陣の定位置に固まっている。ラリーの合間に後方センターへ戻る挙動が、
+  そのまま濃い塊として出ている
+
+つまり **「戻る場所を持つ」振る舞いは、ヒートマップの形として一目で見分けられる**。
+学習エージェントの世代を並べれば、それが自然発生したかどうかも同じ図で判定できる。
 
 ## デバッグモード
 

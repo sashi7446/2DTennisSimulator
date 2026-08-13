@@ -138,11 +138,26 @@ _COLOR_STOPS: Sequence[Tuple[float, Tuple[int, int, int]]] = (
 )
 
 
-def colorize(normalized: np.ndarray) -> np.ndarray:
-    """Map values in 0..1 onto the palette. Returns HxWx3 uint8."""
+# Palette for the live overlay, which sits on the green court rather than
+# on a dark PNG background. It skips the dark end entirely - anything that
+# reads as "shadow" disappears into the grass.
+LIVE_COLOR_STOPS: Sequence[Tuple[float, Tuple[int, int, int]]] = (
+    (0.00, (60, 110, 255)),
+    (0.35, (0, 225, 205)),
+    (0.70, (255, 225, 70)),
+    (1.00, (255, 70, 40)),
+)
+
+
+def colorize(
+    normalized: np.ndarray,
+    color_stops: Optional[Sequence[Tuple[float, Tuple[int, int, int]]]] = None,
+) -> np.ndarray:
+    """Map values in 0..1 onto a palette. Returns HxWx3 uint8."""
     values = np.clip(normalized, 0.0, 1.0)
-    stops = np.array([s[0] for s in _COLOR_STOPS], dtype=np.float64)
-    colors = np.array([s[1] for s in _COLOR_STOPS], dtype=np.float64)
+    palette = color_stops or _COLOR_STOPS
+    stops = np.array([s[0] for s in palette], dtype=np.float64)
+    colors = np.array([s[1] for s in palette], dtype=np.float64)
     rgb = np.stack(
         [np.interp(values, stops, colors[:, channel]) for channel in range(3)],
         axis=-1,
