@@ -13,6 +13,7 @@ from agents.chase import ChaseAgent, SmartChaseAgent
 from agents.intercept import InterceptAgent
 from agents.positional import PositionalAgent
 from agents.random_agent import RandomAgent
+from agents.solver import SolverAgent
 
 
 def create_sample_observation(player_id: int = 0) -> dict:
@@ -553,6 +554,76 @@ class TestAgentSetPlayerId(unittest.TestCase):
 
         agent.set_player_id(1)
         self.assertEqual(agent.player_id, 1)
+
+
+class TestSolverAgent(unittest.TestCase):
+    """Test SolverAgent class."""
+
+    def setUp(self):
+        self.agent = SolverAgent()
+        self.agent.set_player_id(0)
+        self.agent.set_field_dimensions(800.0, 400.0)
+        self.obs = create_sample_observation()
+
+    def test_init(self):
+        """Test SolverAgent initialization."""
+        self.assertEqual(self.agent.config.name, "Solver")
+        self.assertEqual(self.agent.config.agent_type, "solver")
+
+    def test_act_returns_valid_action(self):
+        """Test that act returns valid action tuple."""
+        movement, angle = self.agent.act(self.obs)
+        self.assertIsInstance(movement, int)
+        self.assertIsInstance(angle, float)
+        self.assertGreaterEqual(movement, 0)
+        self.assertLessEqual(movement, 16)
+        self.assertGreaterEqual(angle, 0.0)
+        self.assertLess(angle, 360.0)
+
+    def test_opponent_area_is_across_the_net(self):
+        """A shot must pass through the area on the far side."""
+        area_x, _ = self.agent._opponent_area()
+        self.assertGreater(area_x, 400.0)
+
+        agent_b = SolverAgent()
+        agent_b.set_player_id(1)
+        self.assertLess(agent_b._opponent_area()[0], 400.0)
+
+    def test_shot_missing_the_in_area_is_rejected(self):
+        """Straight up the court misses Area B entirely, so it is out."""
+        self.assertIsNone(self.agent._score_shot(270.0, 400.0, 200.0, 700.0, 200.0))
+
+    def test_shot_through_the_in_area_is_scored(self):
+        """A flat shot to the right is valid and gets a slack score."""
+        score = self.agent._score_shot(0.0, 400.0, 200.0, 700.0, 200.0)
+        self.assertIsNotNone(score)
+
+    def test_stranded_opponent_gives_a_winner(self):
+        """An opponent parked in one corner cannot cover the other."""
+        scores = [
+            self.agent._score_shot(angle, 400.0, 200.0, 780.0, 20.0)
+            for angle in self.agent._candidate_angles()
+        ]
+        self.assertIn(float("inf"), scores)
+
+    def test_no_search_when_the_ball_is_far(self):
+        """Searching costs real time, so it only runs near the ball."""
+        self.obs["ball_x"] = 700.0
+        self.obs["player_a_x"] = 100.0
+        self.assertIsNone(self.agent._best_hit_angle(self.obs, 100.0, 200.0))
+
+    def test_chosen_angle_is_never_an_out_ball(self):
+        """Whatever the search returns must be a valid shot."""
+        self.obs["ball_x"] = 410.0
+        self.obs["ball_y"] = 200.0
+        angle = self.agent._best_hit_angle(self.obs, 400.0, 200.0)
+        self.assertIsNotNone(angle)
+        self.assertIsNotNone(self.agent._score_shot(angle, 410.0, 200.0, 700.0, 200.0))
+
+    def test_set_ball_speed_overrides_default(self):
+        """Shot simulation must use the real ball speed."""
+        self.agent.set_ball_speed(22.0)
+        self.assertEqual(self.agent.ball_speed, 22.0)
 
 
 if __name__ == "__main__":
