@@ -58,14 +58,35 @@
   }
   button:active { background: #252d3a; }
   #play { flex: 1.4; font-weight: 600; }
+  #auto.on { border-color: #3d9d6b; color: #7fd6a5; }
+
+  /* matchup grid - the whole card list at a glance, one tap per card */
+  .gridwrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 12px; }
+  .grid { display: grid; gap: 3px; min-width: max-content; }
+  .grid .hd {
+    font-size: 10px; color: var(--dim); text-align: center;
+    display: flex; align-items: center; justify-content: center;
+    letter-spacing: .04em;
+  }
+  .grid .hd.row { justify-content: flex-end; padding-right: 5px; }
+  .grid .cell {
+    min-width: 38px; min-height: 34px; padding: 0;
+    font-size: 11px; border-radius: 7px; flex: none;
+    background: #202836; border-color: transparent; color: var(--dim);
+  }
+  .grid .cell.has { background: #2f7d55; color: #eaf6ee; }
+  .grid .cell.on { outline: 2px solid #ffe14d; outline-offset: -2px; color: #fff; }
+  .grid .cell:disabled { opacity: .35; cursor: default; }
   footer { margin-top: 16px; font-size: 12px; color: var(--dim); text-align: center; }
   footer a { color: var(--dim); }
 </style>
 </head>
 <body>
 
-<h1>2D Tennis Simulator — Replay</h1>
+<h1>2D Tennis Simulator — Matchups</h1>
 <div class="meta" id="meta"></div>
+
+<div class="gridwrap"><div class="grid" id="grid"></div></div>
 
 <div class="score">
   <div class="side a"><span class="name" id="nameA">A</span><span class="num" id="scoreA">0</span></div>
@@ -81,9 +102,10 @@
 </div>
 
 <div class="controls">
-  <button id="prev" aria-label="前のポイント">⏮</button>
+  <button id="prev" aria-label="前のカード">⏮</button>
   <button id="play">⏸ PAUSE</button>
-  <button id="next" aria-label="次のポイント">⏭</button>
+  <button id="next" aria-label="次のカード">⏭</button>
+  <button id="auto" class="on" aria-label="自動送り">🔁</button>
   <button id="speed">1.0x</button>
 </div>
 
@@ -92,40 +114,141 @@
   <a href="https://github.com/sashi7446/2DTennisSimulator">GitHub</a>
 </footer>
 
-<script src="replay.js?v=071497bf"></script>
+<script src="replays/index.js?v=10909efa"></script>
 <script>
 (function () {
-  const R = window.REPLAY;
+  const INDEX = window.REPLAY_INDEX;
+  const SCHEMA = 1;                     // frame layout this viewer can draw
   const canvas = document.getElementById("court");
   const ctx = canvas.getContext("2d");
+  const info = document.getElementById("info");
 
-  if (!R || !R.points || !R.points.length) {
-    document.getElementById("info").textContent =
-      "replay.js がありません。python record_replay.py で生成してください。";
+  if (!INDEX || !INDEX.cards || !INDEX.cards.length) {
+    info.textContent = "録画がありません。python record_matrix.py で生成してください。";
+    return;
+  }
+  if (INDEX.version !== SCHEMA) {
+    info.textContent = "録画の形式が新しすぎます。ページを再読み込みしてください。";
     return;
   }
 
-  const [FW, FH] = R.field;
-  const [BALL_R, PLAYER_R, REACH] = R.radii;
+  const cards = INDEX.cards;
+  const byPair = new Map(cards.map(c => [c.a + "__" + c.b, c]));
+  const cardFor = (a, b) => byPair.get(a + "__" + b) || byPair.get(b + "__" + a);
+
   const PAD = 16;                       // court margin, in field units
-  const VW = FW + PAD * 2, VH = FH + PAD * 2;
   const TRAIL = 14;                     // ball trail length, in frames
   const FLASH = 8;                      // hit flash duration, in frames
   const END_HOLD = 55;                  // frames to hold the winner banner
-
-  // Longest rally in the whole replay - worth pointing at.
-  const bestRally = Math.max(...R.points.map(p => p.rally));
-
-  let pointIdx = 0, frameIdx = 0, holding = 0, playing = true, speed = 1;
   const SPEEDS = [1, 2, 0.5];
-  let speedIdx = 0;
 
-  document.getElementById("nameA").textContent = R.names[0];
-  document.getElementById("nameB").textContent = R.names[1];
+  let R = null, cardIdx = -1;
+  let FW = 0, FH = 0, VW = 1, VH = 1, BALL_R = 0, PLAYER_R = 0, REACH = 0, bestRally = 0;
+  let pointIdx = 0, frameIdx = 0, holding = 0, playing = true, speed = 1, speedIdx = 0;
+  let auto = true;                      // roll on to the next card at the end
 
-  if (R.meta) {
-    document.getElementById("meta").textContent =
-      `ball ${R.meta.ball_speed} · player ${R.meta.player_speed} · reach ${R.meta.reach}`;
+  // --- matchup grid -------------------------------------------------------
+  const grid = document.getElementById("grid");
+  const agents = INDEX.agents;
+  const short = name => name.slice(0, 3).toUpperCase();
+  const cells = new Map();
+
+  function buildGrid() {
+    grid.style.gridTemplateColumns = `auto repeat(${agents.length}, min-content)`;
+    grid.appendChild(document.createElement("div"));
+    for (const b of agents) {
+      const hd = document.createElement("div");
+      hd.className = "hd";
+      hd.textContent = short(b);
+      grid.appendChild(hd);
+    }
+    for (const a of agents) {
+      const hd = document.createElement("div");
+      hd.className = "hd row";
+      hd.textContent = short(a);
+      grid.appendChild(hd);
+      for (const b of agents) {
+        const card = cardFor(a, b);
+        const cell = document.createElement("button");
+        cell.className = "cell" + (card ? " has" : "");
+        cell.textContent = a === b ? "=" : "▸";
+        cell.title = `${a} vs ${b}`;
+        if (!card) {
+          cell.disabled = true;
+        } else {
+          cell.onclick = () => show(cards.indexOf(card));
+          const list = cells.get(card.id) || [];
+          list.push(cell);
+          cells.set(card.id, list);
+        }
+        grid.appendChild(cell);
+      }
+    }
+  }
+
+  function markGrid() {
+    for (const [id, list] of cells) {
+      const on = cards[cardIdx] && cards[cardIdx].id === id;
+      for (const cell of list) cell.classList.toggle("on", on);
+    }
+  }
+
+  // --- loading ------------------------------------------------------------
+  // Cards are separate files fetched on demand: 28 of them in one bundle
+  // would be a megabyte before the first ball is drawn. A <script> tag is
+  // used rather than fetch so the page still works over file://.
+  const loaded = new Map();
+  let pending = null;
+
+  function show(idx) {
+    if (idx === cardIdx) return;
+    const card = cards[idx];
+    cardIdx = idx;
+    markGrid();
+    document.getElementById("nameA").textContent = card.names[0];
+    document.getElementById("nameB").textContent = card.names[1];
+
+    if (loaded.has(card.id)) {
+      start(loaded.get(card.id));
+      return;
+    }
+
+    R = null;
+    info.textContent = `${card.a} vs ${card.b} を読み込み中…`;
+    pending = card.id;
+
+    const el = document.createElement("script");
+    el.src = `replays/${card.file}?v=${card.v}`;
+    el.onload = () => {
+      const replay = window.REPLAY_CARD;
+      window.REPLAY_CARD = null;
+      if (!replay) { fail(card); return; }
+      loaded.set(card.id, replay);
+      if (pending === card.id) start(replay);
+    };
+    el.onerror = () => fail(card);
+    document.head.appendChild(el);
+  }
+
+  function fail(card) {
+    if (pending !== card.id) return;
+    info.textContent = `${card.a} vs ${card.b} を読み込めませんでした`;
+  }
+
+  function start(replay) {
+    pending = null;
+    R = replay;
+    [FW, FH] = R.field;
+    [BALL_R, PLAYER_R, REACH] = R.radii;
+    VW = FW + PAD * 2;
+    VH = FH + PAD * 2;
+    bestRally = Math.max(...R.points.map(p => p.rally));
+    pointIdx = 0; frameIdx = 0; holding = 0;
+    if (R.meta) {
+      document.getElementById("meta").textContent =
+        `${cardIdx + 1}/${cards.length} · ball ${R.meta.ball_speed} · player ${R.meta.player_speed} · reach ${R.meta.reach}`;
+    }
+    resize();
   }
 
   // --- layout -------------------------------------------------------------
@@ -243,7 +366,7 @@
     }
     document.getElementById("scoreA").textContent = a;
     document.getElementById("scoreB").textContent = b;
-    document.getElementById("info").textContent =
+    info.textContent =
       `Point ${pointIdx + 1}/${R.points.length}   Rally ${rallyAt(frameIdx)}`;
     document.getElementById("badge").classList.toggle(
       "on", R.points[pointIdx].rally >= bestRally && bestRally > 0
@@ -251,10 +374,22 @@
   }
 
   // --- playback -----------------------------------------------------------
-  function goto(idx) {
-    pointIdx = (idx + R.points.length) % R.points.length;
-    frameIdx = 0;
-    holding = 0;
+  function gotoCard(idx) {
+    show((idx + cards.length) % cards.length);
+  }
+
+  function advance() {
+    if (pointIdx < R.points.length - 1) {
+      pointIdx++;
+      frameIdx = 0;
+      holding = 0;
+    } else if (auto) {
+      gotoCard(cardIdx + 1);
+    } else {
+      pointIdx = 0;
+      frameIdx = 0;
+      holding = 0;
+    }
   }
 
   let acc = 0, last = performance.now();
@@ -262,23 +397,26 @@
     const dt = Math.min(now - last, 250);
     last = now;
 
-    if (playing) {
-      acc += dt * (R.fps / 1000) * speed;
-      while (acc >= 1) {
-        acc -= 1;
-        const frames = R.points[pointIdx].f;
-        if (frameIdx < frames.length - 1) {
-          frameIdx++;
-        } else if (holding < END_HOLD) {
-          holding++;
-        } else {
-          goto(pointIdx + 1);
+    if (R) {
+      if (playing) {
+        acc += dt * (R.fps / 1000) * speed;
+        while (acc >= 1 && R) {
+          acc -= 1;
+          const frames = R.points[pointIdx].f;
+          if (frameIdx < frames.length - 1) {
+            frameIdx++;
+          } else if (holding < END_HOLD) {
+            holding++;
+          } else {
+            advance();
+          }
         }
       }
+      if (R) {
+        drawFrame();
+        updateHud();
+      }
     }
-
-    drawFrame();
-    updateHud();
     requestAnimationFrame(loop);
   }
 
@@ -290,17 +428,25 @@
   }
   playBtn.onclick = () => setPlaying(!playing);
   canvas.onclick = () => setPlaying(!playing);
-  document.getElementById("prev").onclick = () => goto(pointIdx - 1);
-  document.getElementById("next").onclick = () => goto(pointIdx + 1);
+  document.getElementById("prev").onclick = () => gotoCard(cardIdx - 1);
+  document.getElementById("next").onclick = () => gotoCard(cardIdx + 1);
   document.getElementById("speed").onclick = (e) => {
     speedIdx = (speedIdx + 1) % SPEEDS.length;
     speed = SPEEDS[speedIdx];
     e.target.textContent = speed.toFixed(1) + "x";
   };
+  const autoBtn = document.getElementById("auto");
+  autoBtn.onclick = () => {
+    auto = !auto;
+    autoBtn.classList.toggle("on", auto);
+  };
 
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
+
+  buildGrid();
   resize();
+  show(0);
   requestAnimationFrame(loop);
 })();
 </script>

@@ -1,44 +1,32 @@
-name: Record Replay
+name: Record Matchups
 
-# Records a match on GitHub's machine and publishes it to the web viewer.
-# Run it from the GitHub mobile app: Actions -> Record Replay -> Run workflow.
+# Records every agent pairing and publishes them to the web viewer, which
+# shows them as a tap-to-play grid.
+# Run it from the GitHub mobile app: Actions -> Record Matchups -> Run workflow.
 #
-# Agent names are free text on purpose: a newly written agent works here as
-# soon as create_agent() knows about it, with no change to this file. A path
-# to a saved agent directory (e.g. saved_agents/agent_a_neural) also works.
+# Cards that already exist are reused, so a normal run after adding one agent
+# only records that agent's new cards.
 
 on:
   workflow_dispatch:
     inputs:
-      agent_a:
-        description: "Player A (chase / smart / baseliner / positional / random / neural / transformer, or a saved path)"
+      agents:
+        description: "Agents to pair up, space separated"
         required: true
-        default: "smart"
-      agent_b:
-        description: "Player B"
-        required: true
-        default: "baseliner"
+        default: "chase smart baseliner positional intercept solver random"
       points:
-        description: "Number of points to record"
+        description: "Points per card"
         required: true
-        default: "20"
-      ball_speed:
-        description: "Ball speed. Blank keeps the tuned 15.0; lower lengthens rallies"
-        required: false
-        default: ""
-      player_speed:
-        description: "Player speed. Blank keeps the tuned 4.0 - raising it makes anticipation pointless"
-        required: false
-        default: ""
-      reach:
-        description: "Player reach distance. Blank keeps the tuned 30.0"
-        required: false
-        default: ""
+        default: "10"
+      force:
+        description: "Re-record cards that already exist"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
-# One recording at a time, so two runs cannot race on docs/replay.js
+# One recording at a time, so two runs cannot race on docs/replays
 concurrency:
   group: record-replay
   cancel-in-progress: false
@@ -54,52 +42,48 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Record the match
+      - name: Record the matchups
         env:
-          AGENT_A: ${{ inputs.agent_a }}
-          AGENT_B: ${{ inputs.agent_b }}
+          AGENTS: ${{ inputs.agents }}
           POINTS: ${{ inputs.points }}
-          BALL_SPEED: ${{ inputs.ball_speed }}
-          PLAYER_SPEED: ${{ inputs.player_speed }}
-          REACH: ${{ inputs.reach }}
+          FORCE: ${{ inputs.force }}
         run: |
           set -euo pipefail
-          args=(--agent-a "$AGENT_A" --agent-b "$AGENT_B" --points "$POINTS")
-          # Plain `[ -n "$X" ] && ...` would abort the whole step under set -e
-          # whenever the value is blank, so use explicit ifs
-          if [ -n "$BALL_SPEED" ]; then args+=(--speed "$BALL_SPEED"); fi
-          if [ -n "$PLAYER_SPEED" ]; then args+=(--player-speed "$PLAYER_SPEED"); fi
-          if [ -n "$REACH" ]; then args+=(--reach "$REACH"); fi
-          python record_replay.py "${args[@]}" | tee recording.log
+          args=(--points "$POINTS" --agents $AGENTS)
+          if [ "$FORCE" = "true" ]; then args+=(--force); fi
+          python record_matrix.py "${args[@]}" | tee recording.log
 
       - name: Publish to the viewer
-        env:
-          AGENT_A: ${{ inputs.agent_a }}
-          AGENT_B: ${{ inputs.agent_b }}
         run: |
           set -euo pipefail
-          if git diff --quiet docs/replay.js docs/index.html; then
-            echo "Replay is identical to the published one - nothing to do."
+          if git diff --quiet docs/ && [ -z "$(git status --porcelain docs/)" ]; then
+            echo "Every card is already published - nothing to do."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # index.html carries the cache-busting version of replay.js
-          git add docs/replay.js docs/index.html
-          git commit -m "Record $AGENT_A vs $AGENT_B"
+          git add docs/
+          git commit -m "Record agent matchups"
+          # A run started while someone was pushing would otherwise just fail
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase
+            sleep $((attempt * 2))
+          done
           git push
 
       - name: Summary
         if: always()
         run: |
           {
-            echo "## ${{ inputs.agent_a }} vs ${{ inputs.agent_b }}"
+            echo "## Matchups"
             echo ""
             echo '```'
             cat recording.log 2>/dev/null || echo "(recording failed)"
