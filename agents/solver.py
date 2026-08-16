@@ -8,17 +8,15 @@ from agents.intercept import InterceptAgent, _to_direction
 
 DEFAULT_BALL_SPEED = 15.0
 
-# Candidate hit angles, in degrees. 2 degrees is finer than the width of a
-# player's reach at the far side of the court, so a smaller step cannot find
-# a shot this one misses.
+# Finer than a player's reach at the far side of the court, so no smaller
+# step can find a shot this one misses.
 ANGLE_STEP = 2.0
 
-# A shot travels the court in roughly 50 frames at the default speeds; the
-# simulation stops at the first wall anyway, so this is only a safety bound.
+# The first wall exits the loop long before this; it only bounds a ball that
+# somehow never reaches one.
 SHOT_LOOKAHEAD_FRAMES = 200
 
-# Beyond this distance the ball cannot be hit next frame, so searching for a
-# hit angle would be wasted work.
+# The search only pays off within a hit of the ball, and it runs every frame.
 HIT_SEARCH_SLACK = 6.0
 
 WINNER_SCORE = float("inf")
@@ -27,21 +25,13 @@ WINNER_SCORE = float("inf")
 class SolverAgent(InterceptAgent):
     """Chooses where to hit by simulating every candidate shot.
 
-    InterceptAgent decides how to *reach* the ball and then hits it straight
-    back, which is enough to keep a rally alive but never ends one. Here the
-    reaching logic is inherited unchanged, and the hit angle is picked by
-    replaying the ball physics for each candidate angle:
+    InterceptAgent decides how to reach the ball and then hits it straight
+    back, which keeps a rally alive but never ends one. The reaching logic is
+    inherited unchanged; only the hit angle is searched.
 
-    - a shot that misses the opponent's in-area is out, and is discarded
-    - a shot the opponent cannot get a racket to before it hits a wall wins
-      the point outright, and is played immediately
-    - otherwise the angle that leaves the opponent the least slack (the
-      margin by which they arrive with room to spare) is played, which drags
-      them across the court and sets up the winner on a later shot
-
-    The opponent is assumed to run straight at the interception point at full
-    speed from the moment of the hit, so a shot judged a winner here is a
-    winner against any opponent, not just against the ones in this repo.
+    The opponent is assumed to run straight at the ball at full speed from
+    the moment of the hit, so a shot judged unreachable here is unreachable
+    for any opponent, not just the ones in this repo.
     """
 
     def __init__(self, config: Optional[AgentConfig] = None):
@@ -77,11 +67,9 @@ class SolverAgent(InterceptAgent):
     def _score_shot(
         self, angle: float, bx: float, by: float, ox: float, oy: float
     ) -> Optional[float]:
-        """Simulate one shot. Returns None if it lands out.
+        """Slack the shot leaves the opponent, or None if it lands out.
 
-        The score is how little slack the opponent is left with: negative
-        means they cannot make it, and WINNER_SCORE means the ball reaches a
-        wall while valid without ever coming within their range.
+        Lower is better, and WINNER_SCORE means they never come within range.
         """
         rad = math.radians(angle)
         vx, vy = math.cos(rad) * self.ball_speed, math.sin(rad) * self.ball_speed
@@ -100,15 +88,15 @@ class SolverAgent(InterceptAgent):
                     is_in = True
 
             if x - r <= 0 or x + r >= self.field_width or y - r <= 0 or y + r >= self.field_height:
-                # The wall ends the point: a valid ball wins it, an invalid
-                # one is my own shot going out
+                # The wall ends the point either way: for a valid ball in my
+                # favour, otherwise as my own shot going out
                 return best_slack if is_in else None
 
             if not is_in:
                 continue
 
-            # One extra frame of travel, because the opponent also moves in
-            # the frame the hit itself happens
+            # One frame of travel more than elapsed, because the opponent
+            # also moves in the frame the hit itself happens
             budget = self.player_speed * (step + 1) + self.reach_distance
             slack = budget - math.hypot(x - ox, y - oy)
             if slack >= 0:
@@ -132,7 +120,6 @@ class SolverAgent(InterceptAgent):
                 continue
             if score == WINNER_SCORE:
                 return angle
-            # Least slack left to the opponent, i.e. the most stretching shot
             if best_score is None or score < best_score:
                 best_angle, best_score = angle, score
         return best_angle
@@ -143,8 +130,8 @@ class SolverAgent(InterceptAgent):
 
         target = self._interception(mx, my, observation) or self._defensive_home()
 
-        # Same reasoning as InterceptAgent: the ball is only returnable on
-        # this player's own half, so crossing the centre gains nothing
+        # As in InterceptAgent: the ball is only returnable on this player's
+        # own half, so crossing the centre gains nothing
         centre = self.field_width / 2
         tx = min(target[0], centre) if self.player_id == 0 else max(target[0], centre)
         movement = _to_direction(tx - mx, target[1] - my)
