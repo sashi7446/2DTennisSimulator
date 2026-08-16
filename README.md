@@ -45,6 +45,7 @@ python main.py --mode list
 | `baseliner` | 守備的にベースライン付近で拾い続けるAI |
 | `positional` | 位置取り優先のAI |
 | `intercept` | 到達可能な迎撃点へ先回りし、空いたら後方センターへ戻る |
+| `solver` | 打球角度を全探索し、相手が届かない一手を選ぶ（最強の非学習AI） |
 | `random` | ランダム行動（ベースライン比較用） |
 | `neural` | Policy Gradientで学習するニューラルネットワークAI |
 | `transformer` | Attention機構を用いた高度なモデル（Transformer） |

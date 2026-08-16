@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on the first hit it tried to draw
 
 ### Added
+- `solver` agent: simulates every candidate hit angle and plays the one the
+  opponent cannot reach. Wins 99% against `intercept` and 100% against `chase`
 - `heatmap.py`: position heatmaps answering whether a home position emerges
 - `--heatmap-out` records where players stood, in visual and headless mode
 - Heatmap PNG rendering with zlib and numpy only, no matplotlib

@@ -10,6 +10,7 @@ from agents.chase import ChaseAgent, SmartChaseAgent
 from agents.intercept import InterceptAgent
 from agents.positional import PositionalAgent
 from agents.random_agent import RandomAgent
+from agents.solver import SolverAgent
 
 # NeuralAgent requires numpy
 try:
@@ -31,6 +32,7 @@ __all__ = [
     "RandomAgent",
     "InterceptAgent",
     "PositionalAgent",
+    "SolverAgent",
     "BaselinerAgent",
     "NeuralAgent",
     "TransformerAgent",

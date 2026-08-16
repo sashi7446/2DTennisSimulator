@@ -26,6 +26,7 @@ from agents import (
     PositionalAgent,
     RandomAgent,
     SmartChaseAgent,
+    SolverAgent,
     load_agent,
 )
 from config import Config
@@ -58,6 +59,8 @@ def create_agent(
         agent = PositionalAgent()
     elif agent_type == "intercept":
         agent = InterceptAgent()
+    elif agent_type == "solver":
+        agent = SolverAgent()
     elif agent_type == "neural":
         if not NEURAL_AVAILABLE:
             print("Warning: NeuralAgent requires numpy. Falling back to ChaseAgent.")
@@ -97,6 +100,8 @@ def _configure_agent(agent: Agent, config: Config) -> None:
             config.reach_distance,
             (config.area_width, config.area_height, config.area_gap),
         )
+    if hasattr(agent, "set_ball_speed"):
+        agent.set_ball_speed(config.ball_speed)
 
 
 def run_visual_game(
@@ -536,6 +541,7 @@ def list_agent_types() -> None:
     print("  baseliner - Defensive baseline play")
     print("  positional- Position-driven strategy")
     print("  intercept - Predicts the interception point, recovers to deep centre")
+    print("  solver    - Searches every hit angle for one the opponent cannot reach")
     print("  random    - Random actions (baseline)")
     if NEURAL_AVAILABLE:
         print("  neural      - Learning neural network agent")
@@ -589,7 +595,7 @@ For more information, see README.md
         default="chase",
         metavar="TYPE",
         help="Agent type for Player A (default: %(default)s)\n"
-        "Built-in types: chase, smart, baseliner, positional, intercept, random, neural, transformer\n"
+        "Built-in types: chase, smart, baseliner, positional, intercept, solver, random, neural, transformer\n"
         "Or provide a path to a saved agent directory",
     )
     parser.add_argument(
@@ -598,7 +604,7 @@ For more information, see README.md
         default="chase",
         metavar="TYPE",
         help="Agent type for Player B (default: %(default)s)\n"
-        "Built-in types: chase, smart, baseliner, positional, intercept, random, neural, transformer\n"
+        "Built-in types: chase, smart, baseliner, positional, intercept, solver, random, neural, transformer\n"
         "Or provide a path to a saved agent directory",
     )
     parser.add_argument(
