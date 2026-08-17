@@ -92,11 +92,23 @@ python main.py --mute
 
 | キー | 動作 |
 |------|------|
-| `D` | デバッグ表示の切り替え |
 | `H` | ヒートマップ切り替え（両者 → A → B → オフ） |
 | `S` | エージェントを保存（--save-dir指定時） |
-| `R` | ゲームリセット |
 | `ESC` | 終了 |
+
+`--debug` を付けて起動したときだけ、以下のキーも使えます：
+
+| キー | 動作 |
+|------|------|
+| `SPACE` | 一時停止 / 再開 |
+| `N` | 1フレームだけ進める（一時停止中） |
+| `1` `2` `3` `4` | 再生速度（通常 / 2倍 / 4倍 / 無制限） |
+| `R` | ゲームリセット |
+| `T` | 弾道予測の表示切り替え |
+| `D` | プレイヤー・ボール間の距離表示切り替え |
+| `P` | 状態パネル（観測値・行動・報酬・ミニマップ）の表示切り替え |
+| `G` | 報酬グラフの表示切り替え |
+| `F` | FPS表示切り替え |
 
 ### ヘッドレス学習モード
 
@@ -394,6 +406,8 @@ Config(reward_rally=0.0, reward_in_area=0.0, reward_step=0.0)
 
 ## ファイル構成
 
+主要なファイルのみ抜粋（増減するので網羅はしません）：
+
 ```
 ├── main.py          # エントリーポイント（CLI）
 ├── config.py        # 設定パラメータ
@@ -416,10 +430,12 @@ Config(reward_rally=0.0, reward_in_area=0.0, reward_step=0.0)
 │   ├── chase.py     # ChaseAgent, SmartChaseAgent
 │   ├── baseliner.py # BaselinerAgent
 │   ├── positional.py    # PositionalAgent
+│   ├── intercept.py     # InterceptAgent
+│   ├── solver.py        # SolverAgent
 │   ├── random_agent.py  # RandomAgent
 │   ├── neural.py    # NeuralAgent（Policy Gradient）
 │   └── transformer.py   # TransformerAgent
-└── tests/           # ユニットテスト（96テスト）
+└── tests/           # ユニットテスト
 ```
 
 ## テスト
