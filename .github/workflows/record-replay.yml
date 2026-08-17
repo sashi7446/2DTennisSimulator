@@ -1,11 +1,9 @@
 name: Record Matchups
 
-# Records every agent pairing and publishes them to the web viewer, which
-# shows them as a tap-to-play grid.
 # Run it from the GitHub mobile app: Actions -> Record Matchups -> Run workflow.
 #
-# Cards that already exist are reused, so a normal run after adding one agent
-# only records that agent's new cards.
+# Agent names are free text on purpose: a newly written agent works here as
+# soon as create_agent() knows about it, with no change to this file.
 
 on:
   workflow_dispatch:

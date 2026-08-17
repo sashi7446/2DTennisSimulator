@@ -60,7 +60,6 @@
   #play { flex: 1.4; font-weight: 600; }
   #auto.on { border-color: #3d9d6b; color: #7fd6a5; }
 
-  /* matchup grid - the whole card list at a glance, one tap per card */
   .gridwrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 12px; }
   .grid { display: grid; gap: 3px; min-width: max-content; }
   .grid .hd {
@@ -118,7 +117,7 @@
 <script>
 (function () {
   const INDEX = window.REPLAY_INDEX;
-  const SCHEMA = 1;                     // frame layout this viewer can draw
+  const SCHEMA = 1;
   const canvas = document.getElementById("court");
   const ctx = canvas.getContext("2d");
   const info = document.getElementById("info");
@@ -145,7 +144,7 @@
   let R = null, cardIdx = -1;
   let FW = 0, FH = 0, VW = 1, VH = 1, BALL_R = 0, PLAYER_R = 0, REACH = 0, bestRally = 0;
   let pointIdx = 0, frameIdx = 0, holding = 0, playing = true, speed = 1, speedIdx = 0;
-  let auto = true;                      // roll on to the next card at the end
+  let auto = true;
 
   // --- matchup grid -------------------------------------------------------
   const grid = document.getElementById("grid");
@@ -194,9 +193,9 @@
   }
 
   // --- loading ------------------------------------------------------------
-  // Cards are separate files fetched on demand: 28 of them in one bundle
-  // would be a megabyte before the first ball is drawn. A <script> tag is
-  // used rather than fetch so the page still works over file://.
+  // Cards are separate files fetched on demand: all of them in one bundle
+  // would be over a megabyte before the first ball is drawn. A <script> tag
+  // is used rather than fetch so the page still works over file://.
   const loaded = new Map();
   let pending = null;
 

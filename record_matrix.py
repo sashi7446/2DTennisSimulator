@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 """Record every agent pairing once, for the matchup grid in docs/index.html.
 
-The point of this file is a survey, not a tournament: ten points per card is
-enough to see what a matchup feels like, and 28 cards have to stay light
-enough that a phone can flick through them.
-
-Cards already on disk are kept as they are, so re-running this after adding
-one agent records only the new cards.
+This is a survey, not a tournament: the settings below are sized so a phone
+can flick through the whole grid, not so the results are conclusive.
 
     python record_matrix.py                      # every pairing, reusing what exists
     python record_matrix.py --agents chase smart # just these
@@ -32,12 +28,10 @@ OUTPUT_DIR = "docs/replays"
 INDEX_PATH = os.path.join(OUTPUT_DIR, "index.js")
 VIEWER_PAGE = "docs/index.html"
 
-# Enough points to see which agent actually has the upper hand, while the
-# per-card file stays small enough to load on a tap.
 DEFAULT_POINTS = 10
 
-# Half the single-replay budget. A stalled card is worth seeing for a few
-# seconds; it is not worth 60 KB of endless rally on a phone connection.
+# Two defensive agents may never end a point, and an unbounded stalled card
+# would be tens of KB of endless rally on a phone connection.
 MAX_STEPS = 900
 
 
@@ -51,7 +45,7 @@ def pairings(agents: List[str]) -> List[tuple]:
 
 
 def write_card(path: str, replay: Dict[str, Any]) -> str:
-    """Write one card and return its content hash, used for cache busting."""
+    """Write one card and return its content hash, which versions its URL."""
     payload = json.dumps(replay, separators=(",", ":"))
     with open(path, "w", encoding="utf-8") as f:
         f.write("window.REPLAY_CARD = ")
@@ -61,7 +55,7 @@ def write_card(path: str, replay: Dict[str, Any]) -> str:
 
 
 def load_index() -> Dict[str, Any]:
-    """Read the existing index so untouched cards keep their metadata."""
+    """Read the existing index so reused cards keep their metadata."""
     if not os.path.exists(INDEX_PATH):
         return {}
 
