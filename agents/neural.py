@@ -26,7 +26,7 @@ class NeuralAgentConfig(AgentConfig):
             "hidden_size": 64,
             "learning_rate": 0.05,
             "gamma": 0.99,
-            "entropy_coef": 0.01,
+            "entropy_coef": 0.001,
         }
     )
 
@@ -40,7 +40,7 @@ class NeuralAgent(Agent):
         self.hidden_size = p.get("hidden_size", 64)
         self.learning_rate = p.get("learning_rate", 0.05)
         self.gamma = p.get("gamma", 0.99)
-        self.entropy_coef = p.get("entropy_coef", 0.01)
+        self.entropy_coef = p.get("entropy_coef", 0.001)
 
         self.input_size, self.move_output_size, self.angle_output_size = 11, 17, 2
         self._init_weights()
@@ -116,9 +116,12 @@ class NeuralAgent(Agent):
 
         angle_params = (hidden @ self.W_angle + self.b_angle).copy()
 
-        # 【ガードレール撤去】player_idによる向きの固定（base_angle）を廃止
-        # 【tanhの悪魔を退治】tanhを通さず、-180〜180度の全方位をNNに直接制御させる
-        angle_params[0] = angle_params[0] * 180.0
+        # Mean is bounded to +-180 deg via tanh: unbounded mean has no
+        # restoring force and random-walks to tens of thousands of degrees
+        # over training (harmless once wrapped mod 360 for hitting, but it
+        # makes the raw pre-activation - and the weights that produce it -
+        # grow without limit, drowning out further learning signal).
+        angle_params[0] = np.tanh(angle_params[0]) * 180.0
         angle_params[1] = np.clip(angle_params[1], -1, 1)
 
         value = (hidden @ self.W_value + self.b_value)[0]
@@ -188,7 +191,8 @@ class NeuralAgent(Agent):
             move_probs = self._softmax(move_logits)
             angle_pre = hidden @ self.W_angle + self.b_angle
 
-            angle_mean = angle_pre[0] * 180.0
+            angle_mean_tanh = np.tanh(angle_pre[0])
+            angle_mean = angle_mean_tanh * 180.0
             angle_log_std = np.clip(angle_pre[1], -1, 1)
             angle_std = np.exp(angle_log_std) + 0.1
             value = (hidden @ self.W_value + self.b_value)[0]
@@ -196,18 +200,30 @@ class NeuralAgent(Agent):
             advantage = np.clip(G - value, -10, 10)
 
             # d(objective)/d(move_logits): full softmax log-prob gradient,
-            # scaled by advantage (treated as a constant w.r.t. the value head).
-            d_move_logits = advantage * (np.eye(self.move_output_size)[move_action] - move_probs)
+            # scaled by advantage (treated as a constant w.r.t. the value head),
+            # plus an entropy bonus so the policy doesn't collapse to a single
+            # action before it has explored enough to find a good one.
+            move_entropy = -np.sum(move_probs * np.log(move_probs + 1e-10))
+            d_move_entropy = -move_probs * (move_entropy + np.log(move_probs + 1e-10))
+            d_move_logits = (
+                advantage * (np.eye(self.move_output_size)[move_action] - move_probs)
+                + self.entropy_coef * d_move_entropy
+            )
 
             # d(objective)/d(angle_pre), through the *180 mean scaling and the
-            # clip on log_std (zero gradient where the clip is saturated).
+            # clip on log_std (zero gradient where the clip is saturated). The
+            # entropy of N(mean, std) is log(std) + const, so its gradient only
+            # touches the log_std output and pushes std back up when it shrinks
+            # too fast - without this the Gaussian collapses onto whatever
+            # angle the first lucky win used and never explores again.
             angle_diff = hit_angle - angle_mean
             d_mean = advantage * (angle_diff / angle_std**2)
-            d_log_std = advantage * ((angle_diff / angle_std) ** 2 - 1)
+            d_log_std = advantage * ((angle_diff / angle_std) ** 2 - 1) + self.entropy_coef
+            in_range = -1.0 < angle_pre[1] < 1.0
             d_angle_pre = np.array(
                 [
-                    d_mean * 180.0,
-                    d_log_std if -1.0 < angle_pre[1] < 1.0 else 0.0,
+                    d_mean * 180.0 * (1.0 - angle_mean_tanh**2),
+                    d_log_std if in_range else 0.0,
                 ]
             )
 
