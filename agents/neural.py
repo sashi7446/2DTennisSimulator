@@ -1,5 +1,6 @@
 """Neural Network Agent with Policy Gradient Learning."""
 
+import math
 import pickle
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -8,6 +9,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from agents.base import Agent, AgentConfig
+
+# Applied to the averaged (not per-step) gradient before each update, so a
+# single unlucky long rally cannot blow up the weights.
+MAX_GRAD_NORM = 5.0
 
 
 @dataclass
@@ -19,7 +24,7 @@ class NeuralAgentConfig(AgentConfig):
     parameters: Dict[str, Any] = field(
         default_factory=lambda: {
             "hidden_size": 64,
-            "learning_rate": 0.001,
+            "learning_rate": 0.05,
             "gamma": 0.99,
             "entropy_coef": 0.01,
         }
@@ -33,7 +38,7 @@ class NeuralAgent(Agent):
         super().__init__(config or NeuralAgentConfig())
         p = self.config.parameters
         self.hidden_size = p.get("hidden_size", 64)
-        self.learning_rate = p.get("learning_rate", 0.001)
+        self.learning_rate = p.get("learning_rate", 0.05)
         self.gamma = p.get("gamma", 0.99)
         self.entropy_coef = p.get("entropy_coef", 0.01)
 
@@ -149,7 +154,17 @@ class NeuralAgent(Agent):
             self.episode_count += 1
 
     def _update(self) -> None:
-        """Policy gradient update."""
+        """Policy gradient update (REINFORCE with baseline, full backprop).
+
+        Gradients are accumulated over every step of the episode and then
+        averaged before a single update is applied. The previous version
+        applied a hard ±1 clip to each *unaveraged* per-step gradient and
+        added it directly to the weights, which for long rallies (up to
+        max_steps_per_point) meant hundreds of full-magnitude updates per
+        `_update()` call - the weights diverged before any signal could be
+        learned. It also never backpropagated into W1/b1, so the shared
+        hidden representation stayed at its random initialization forever.
+        """
         if not self.rewards:
             return
 
@@ -162,54 +177,72 @@ class NeuralAgent(Agent):
         if len(returns) > 1:
             returns = (returns - returns.mean()) / (returns.std() + 1e-8)
 
-        # 【ガードレール撤去】学習時もIDによる補正を行わない
-        for features, (move_action, hit_angle), _, G in zip(
-            self.states, self.actions, self.log_probs, returns
-        ):
-            # 【対称性の確保】学習側もTanhへ変更
-            hidden = np.tanh(features @ self.W1 + self.b1)
-            move_probs = self._softmax(hidden @ self.W_move + self.b_move)
-            angle_params_raw = hidden @ self.W_angle + self.b_angle
+        grads = {
+            k: np.zeros_like(getattr(self, k))
+            for k in ["W1", "b1", "W_move", "b_move", "W_angle", "b_angle", "W_value", "b_value"]
+        }
 
-            # 【実験設定】学習ターゲットも360度全方位で計算
-            angle_mean = angle_params_raw[0] * 180.0
-            angle_log_std = np.clip(angle_params_raw[1], -1, 1)
+        for features, (move_action, hit_angle), G in zip(self.states, self.actions, returns):
+            hidden = np.tanh(features @ self.W1 + self.b1)
+            move_logits = hidden @ self.W_move + self.b_move
+            move_probs = self._softmax(move_logits)
+            angle_pre = hidden @ self.W_angle + self.b_angle
+
+            angle_mean = angle_pre[0] * 180.0
+            angle_log_std = np.clip(angle_pre[1], -1, 1)
+            angle_std = np.exp(angle_log_std) + 0.1
             value = (hidden @ self.W_value + self.b_value)[0]
 
             advantage = np.clip(G - value, -10, 10)
 
-            # Movement gradient
-            move_grad = np.zeros(self.move_output_size)
-            move_grad[move_action] = (
-                (1.0 - move_probs[move_action]) * advantage * self.learning_rate
-            )
-            self.W_move += np.clip(np.outer(hidden, move_grad), -1, 1)
-            self.b_move += np.clip(move_grad, -1, 1)
+            # d(objective)/d(move_logits): full softmax log-prob gradient,
+            # scaled by advantage (treated as a constant w.r.t. the value head).
+            d_move_logits = advantage * (np.eye(self.move_output_size)[move_action] - move_probs)
 
-            # Angle gradient
-            angle_std = np.exp(angle_log_std) + 0.1
-            angle_diff = np.clip(hit_angle - angle_mean, -180, 180)
-
-            # 【tanh退治】tanhを使わないので、勾配の傾きは常に 1.0
-            tanh_grad = 1.0
-            angle_grad = np.array(
+            # d(objective)/d(angle_pre), through the *180 mean scaling and the
+            # clip on log_std (zero gradient where the clip is saturated).
+            angle_diff = hit_angle - angle_mean
+            d_mean = advantage * (angle_diff / angle_std**2)
+            d_log_std = advantage * ((angle_diff / angle_std) ** 2 - 1)
+            d_angle_pre = np.array(
                 [
-                    (angle_diff / angle_std**2)
-                    * advantage
-                    * self.learning_rate
-                    * 180.0
-                    * tanh_grad,
-                    ((angle_diff / angle_std) ** 2 - 1) * advantage * self.learning_rate,
+                    d_mean * 180.0,
+                    d_log_std if -1.0 < angle_pre[1] < 1.0 else 0.0,
                 ]
             )
-            angle_grad = np.clip(angle_grad, -1, 1)
-            self.W_angle += np.clip(np.outer(hidden, angle_grad), -1, 1)
-            self.b_angle += angle_grad
 
-            # Value gradient
-            value_grad = np.clip(advantage * self.learning_rate, -1, 1)
-            self.W_value += hidden.reshape(-1, 1) * value_grad
-            self.b_value += value_grad
+            # d(objective)/d(value): ascent on -(G - value)^2 / 2 == advantage.
+            d_value = advantage
+
+            grads["W_move"] += np.outer(hidden, d_move_logits)
+            grads["b_move"] += d_move_logits
+            grads["W_angle"] += np.outer(hidden, d_angle_pre)
+            grads["b_angle"] += d_angle_pre
+            grads["W_value"] += hidden.reshape(-1, 1) * d_value
+            grads["b_value"] += d_value
+
+            # Backprop through the shared hidden layer.
+            d_hidden = (
+                d_move_logits @ self.W_move.T
+                + d_angle_pre @ self.W_angle.T
+                + d_value * self.W_value.flatten()
+            )
+            d_h_pre = d_hidden * (1.0 - hidden**2)
+            grads["W1"] += np.outer(features, d_h_pre)
+            grads["b1"] += d_h_pre
+
+        n = len(self.states)
+        for k in grads:
+            grads[k] /= n
+
+        total_norm = math.sqrt(sum(float(np.sum(g**2)) for g in grads.values()))
+        if total_norm > MAX_GRAD_NORM:
+            scale = MAX_GRAD_NORM / (total_norm + 1e-8)
+            for k in grads:
+                grads[k] *= scale
+
+        for k, g in grads.items():
+            setattr(self, k, getattr(self, k) + self.learning_rate * g)
 
         self.avg_reward_history.append(np.mean(self.rewards))
         self.total_updates += 1
