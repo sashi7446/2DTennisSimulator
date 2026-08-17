@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on the first hit it tried to draw
 
 ### Added
+- `record_matrix.py`: records every agent pairing, mirror matches included,
+  and reuses cards that are already on disk
+- The viewer opens on a matchup grid; cards load on tap, and 🔁 rolls through
+  every card in order
+- `Record Matchups` workflow replaces `Record Replay`: one run covers the
+  whole grid instead of one card at a time
 - `solver` agent: simulates every candidate hit angle and plays the one the
   opponent cannot reach. Wins 99% against `intercept` and 100% against `chase`
 - `heatmap.py`: position heatmaps answering whether a home position emerges

@@ -119,12 +119,15 @@ def record(
     }
 
 
-def stamp_viewer(replay_path: str, page_path: str = VIEWER_PAGE) -> bool:
+def stamp_viewer(replay_path: str, page_path: str = VIEWER_PAGE, src: str = "") -> bool:
     """Point the viewer at a versioned replay URL.
 
     GitHub Pages and phone browsers happily serve a cached replay.js after a
     new recording is published, which looks like the recording never ran.
     Hashing the file into the query string gives each recording its own URL.
+
+    `src` is the script src as the page spells it, which is not always the
+    file's basename: the matchup index sits in a subdirectory.
 
     Returns True when the page changed.
     """
@@ -137,7 +140,7 @@ def stamp_viewer(replay_path: str, page_path: str = VIEWER_PAGE) -> bool:
     with open(page_path, encoding="utf-8") as f:
         page = f.read()
 
-    src = os.path.basename(replay_path)
+    src = src or os.path.basename(replay_path)
     updated = re.sub(
         rf'<script src="{re.escape(src)}(\?v=[0-9a-f]+)?"></script>',
         f'<script src="{src}?v={version}"></script>',

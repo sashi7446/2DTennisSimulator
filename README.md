@@ -190,15 +190,22 @@ python heatmap.py heatmaps/chase.npz --player a --phase idle --out a_idle.png
 録画した試合を静的HTMLで再生します。サーバー不要、pygame も Python も不要。
 iPhone なら Safari の共有 →「ホーム画面に追加」でアプリのように使えます。
 
+上部の対戦表が全カードの一覧です。総当たり（同キャラ戦を含む）が録画済みで、
+セルをタップするとそのカードに切り替わります。カードは選ばれたときに初めて
+読み込まれるので、開いた直後の通信は1カード分だけです。
+
 ### 操作
 
 | 操作 | 動作 |
 |------|------|
+| 対戦表のセル | そのカードに切り替え |
 | コートをタップ | 再生 / 一時停止 |
-| ⏮ / ⏭ | 前 / 次のポイント |
+| ⏮ / ⏭ | 前 / 次のカード |
+| 🔁 | オート送り。全カードを順に流し見する（既定でオン） |
 | 1.0x | 再生速度（1.0x → 2.0x → 0.5x） |
 
-ポイントが決まると自動で次のポイントへ進みます。
+ポイントが決まると自動で次のポイントへ進み、最後のポイントが終わると
+オート送りが次のカードへ移ります。
 
 ### 画面の見方
 
@@ -213,7 +220,7 @@ iPhone なら Safari の共有 →「ホーム画面に追加」でアプリの�
 | ボールの尾 | 直近の軌跡 |
 | 打点から広がる白いリング | そのフレームで打ち返した |
 | ヘッダの `ball 15 · player 4 · reach 30` | その試合を録った設定 |
-| `Point 3/20  Rally 12` | ポイント番号と、現時点までの往復数 |
+| `Point 3/10  Rally 12` | ポイント番号と、現時点までの往復数 |
 | 🔥 LONGEST RALLY | そのポイントが録画中の最長ラリー |
 | `SmartChaseBot WINS (IN)` | 決着。`IN` は決めて得点、`OUT` はミスで失点 |
 
@@ -223,36 +230,37 @@ iPhone なら Safari の共有 →「ホーム画面に追加」でアプリの�
 
 ### スマホから（GitHub Actions）
 
-GitHubアプリまたはブラウザで **Actions → Record Replay → Run workflow** を開き、
-対戦カードなどを入力して実行します。GitHub側でPythonが走り、
-1分ほどで上のページが更新されます。
+GitHubアプリまたはブラウザで **Actions → Record Matchups → Run workflow** を開いて
+実行します。全エージェントの総当たり（同キャラ戦を含む）をGitHub側で録画し、
+ビューアの対戦表に並べます。
 
 | 入力 | 内容 |
 |------|------|
-| `agent_a` / `agent_b` | 対戦させるAIの名前、または保存済みエージェントのパス |
-| `points` | 録画するポイント数 |
-| `ball_speed` | ボール速度（空欄でデフォルト15.0）。**小さいほどラリーが続く** |
-| `player_speed` | プレイヤー速度（空欄でデフォルト4.0）。**上げると予測が無意味になります** |
-| `reach` | リーチ距離（空欄でデフォルト30.0） |
+| `agents` | 対戦させるAIの名前をスペース区切りで。既定は7種すべて |
+| `points` | 1カードあたりのポイント数（既定10） |
+| `force` | 既に録画済みのカードも録り直す |
 
-**エージェント名は選択式ではなく自由入力です。** 新しいAIを書いて `create_agent()` に
-追加すれば、ワークフローを編集せずその名前で指定できます。
+**録画済みのカードは再利用されます。** 新しいAIを書いて `create_agent()` に追加し、
+`agents` の末尾にその名前を足して実行すれば、増えたカードだけが録画されます。
 
 ### ローカルから
 
 ```bash
-# 録画すると docs/replay.js が生成される
-python record_replay.py --agent-a smart --agent-b baseliner --points 20
+# 全カードを録画する（docs/replays/ に1カード1ファイル）
+python record_matrix.py
 
-# ラリーを長くする（プレイヤー速度は変えない。下の注意を参照）
+# 一部のエージェントだけ
+python record_matrix.py --agents chase smart solver
+
+# 録画済みのカードも含めて録り直す
+python record_matrix.py --force
+
+# 1カードだけを設定を変えて録る（docs/replay.js に出力。対戦表には並びません）
 python record_replay.py --agent-a smart --agent-b smart --speed 8
-
-# 学習済みエージェントの世代対決
-python record_replay.py --agent-a saved/gen_050 --agent-b saved/gen_001 --points 30
 ```
 
 `docs/index.html` をブラウザで開けばそのまま再生できます（`file://` でも動作）。
-公開するには `docs/replay.js` と `docs/index.html` をコミットして push してください
+公開するには `docs/replays/` と `docs/index.html` をコミットして push してください
 （録画時に `index.html` の読み込みURLへ内容ハッシュが付与されるため、両方必要です）。
 
 > GitHub Pages の設定は **Settings → Pages → Source: main / docs**。
@@ -397,10 +405,11 @@ Config(reward_rally=0.0, reward_in_area=0.0, reward_step=0.0)
 ├── env.py           # Gymnasium環境
 ├── debug.py         # デバッグログ・バリデーション
 ├── audio.py         # 効果音の合成（numpy波形生成）
-├── record_replay.py # リプレイ録画（docs/replay.js を生成）
+├── record_replay.py # 1カードのリプレイ録画
+├── record_matrix.py # 全カードを総当たりで録画（docs/replays/ を生成）
 ├── docs/            # スマホ向けリプレイビューア（GitHub Pages）
 │   ├── index.html   # 単体で動く再生プレイヤー（依存ゼロ）
-│   └── replay.js    # 録画データ（生成物）
+│   └── replays/     # 対戦表と1カード1ファイルの録画データ（生成物）
 ├── agents/          # エージェントシステム
 │   ├── __init__.py
 │   ├── base.py      # 基底クラス（save/load）
@@ -461,8 +470,8 @@ elif agent_type == "my_new":
 python main.py --agent-a my_new --agent-b chase
 ```
 
-`create_agent` に追加した時点で、GitHub Actions の **Record Replay** からも
-`my_new` と入力するだけで指定できます（ワークフローの編集は不要）。
+`create_agent` に追加した時点で、GitHub Actions の **Record Matchups** の
+`agents` に `my_new` を足すだけで対戦表に並びます（ワークフローの編集は不要）。
 
 ---
 
